@@ -1,4 +1,4 @@
-<?php // <-- Asegúrate de tener esta etiqueta al inicio
+<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -14,18 +14,20 @@ return new class extends Migration
         Schema::create('detalles_pedidos', function (Blueprint $table) {
             $table->id();
             
-            // Clave foránea que referencia a 'pedidos'
-            $table->foreignId('pedido_id')->constrained('pedidos')->onDelete('cascade');
+            // CAMBIO 1: Usar unsignedBigInteger y references explícitamente para SQLite
+            $table->unsignedBigInteger('pedido_id');
+            $table->foreign('pedido_id')->references('id')->on('pedidos')->onDelete('cascade');
             
-            // Clave foránea que referencia a 'productos'
-            $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
+            // CAMBIO 2: Lo mismo para producto_id
+            $table->unsignedBigInteger('producto_id');
+            $table->foreign('producto_id')->references('id')->on('productos')->onDelete('cascade');
             
             $table->unsignedInteger('cantidad'); 
             $table->decimal('precio_unitario', 8, 2); 
 
             $table->timestamps();
         });
-    } // <--- ¡Importante! Aquí cierra el método up()
+    } 
 
     /**
      * Reverse the migrations.
@@ -34,4 +36,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('detalles_pedidos');
     }
-}; // <--- ¡Importante! Aquí cierra la clase
+};

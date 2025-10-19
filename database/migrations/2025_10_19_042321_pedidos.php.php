@@ -13,7 +13,7 @@ return new class extends Migration
     {
         //
         Schema::create('pedidos', function (Blueprint $table) {
-            $table->id('pedido_id');
+           $table->id(); // <-- ¡Esto crea la columna 'id' (el nombre por defecto)!
             // FK que enlaza a users
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->decimal('total', 10, 2); // Total pagado
