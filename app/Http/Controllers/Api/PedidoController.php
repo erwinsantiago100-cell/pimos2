@@ -8,8 +8,8 @@ use App\Models\Producto;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
-use App\Http\Resources\PedidoResource;     // Importado
-use App\Http\Resources\PedidoCollection;  // Importado
+use App\Http\Resources\PedidoResource;
+use App\Http\Resources\PedidoCollection;
 
 /**
  * Gestiona la lógica de Pedidos.
@@ -18,7 +18,6 @@ class PedidoController extends Controller
 {
     /**
      * Muestra una lista de todos los pedidos.
-     * MODIFICACIÓN: Usa PedidoCollection y carga relaciones.
      * @return \App\Http\Resources\PedidoCollection
      */
     public function index()
@@ -38,7 +37,6 @@ class PedidoController extends Controller
 
     /**
      * Crea un nuevo pedido con sus líneas de detalle.
-     * MODIFICACIÓN: Retorna el Resource del pedido creado (201).
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -105,19 +103,18 @@ class PedidoController extends Controller
 
     /**
      * Muestra un pedido específico.
-     * MODIFICACIÓN: Usa PedidoResource y carga relaciones.
-     * @param int $id
+     *
+     * @param \App\Models\Pedido $pedido
      * @return \Illuminate\Http\JsonResponse
      */
-    public function show(int $id)
+    public function show(Pedido $pedido)
     {
-        // MUY IMPORTANTE: Cargar todas las relaciones que el Resource usará
-        $pedido = Pedido::with(['user', 'detallesPedidos.producto'])
-                        ->find($id);
-
-        if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
-        }
+        // MODIFICACIÓN CLAVE: Se cambió el parámetro de "int $id" a "Pedido $pedido" (Route Model Binding).
+        // Esto automáticamente usa $primaryKey = 'pedido_id' del modelo para buscar,
+        // resolviendo el error de "Unknown column".
+        
+        // Cargar todas las relaciones que el Resource usará
+        $pedido->load(['user', 'detallesPedidos.producto']);
 
         return new PedidoResource($pedido); // Usa el Resource
     }
@@ -125,17 +122,13 @@ class PedidoController extends Controller
     /**
      * Actualiza un pedido existente (típicamente su estado).
      * @param \Illuminate\Http\Request $request
-     * @param int $id
+     * @param \App\Models\Pedido $pedido
      * @return \Illuminate\Http\JsonResponse
      */
-    public function update(Request $request, int $id)
+    public function update(Request $request, Pedido $pedido)
     {
-        $pedido = Pedido::find($id);
-
-        if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
-        }
-
+        // MODIFICACIÓN CLAVE: Se cambió el parámetro de "int $id" a "Pedido $pedido" (Route Model Binding).
+        // Se eliminó la búsqueda manual y la verificación de existencia.
         try {
             // Se valida solo el campo 'estado'
             $validatedData = $request->validate([
@@ -161,21 +154,16 @@ class PedidoController extends Controller
     
     /**
      * Elimina un pedido.
-     * @param int $id
+     * @param \App\Models\Pedido $pedido
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(int $id)
+    public function destroy(Pedido $pedido)
     {
-        $pedido = Pedido::find($id);
-
-        if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
-        }
-
+        // MODIFICACIÓN CLAVE: Se cambió el parámetro de "int $id" a "Pedido $pedido" (Route Model Binding).
+        // Se eliminó la búsqueda manual y la verificación de existencia.
         try {
             $pedido->delete();
             
-            // Respuesta simple sin Resource, 200 OK con mensaje de éxito.
             return response()->json(['message' => 'Pedido eliminado con éxito.'], 200);
 
         } catch (\Exception $e) {
