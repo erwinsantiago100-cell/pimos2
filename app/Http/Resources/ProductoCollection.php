@@ -11,16 +11,14 @@ use App\Http\Resources\ProductoResource;
 class ProductoCollection extends ResourceCollection
 {
     /**
-     * Transform the resource collection into an array.
-     *
-     * @return array<int|string, mixed>
+     * Transforma la colección de recursos en un array.
      */
     public function toArray(Request $request): array
     {
         return [
             // Mapea la colección usando el ProductoResource
             'data' => $this->collection->map(function ($producto) {
-                // Puedes optar por usar ProductoResource::make($producto) o simplificar como abajo:
+                // Usamos un mapeo directo para el listado, incluyendo el stock actual.
                 return [
                     'id' => $producto->id,
                     'tipo' => 'producto',

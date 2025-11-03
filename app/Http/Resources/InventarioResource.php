@@ -14,11 +14,10 @@ class InventarioResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // El 'this' hace referencia a la instancia del modelo App\Models\Inventario
+        // CORRECCIÓN FINAL: Se usa explícitamente $this->inventario_id,
+        // la clave primaria definida en el modelo, para evitar el null.
         return [
-            // Tu migración llama a la PK 'inventario_id', pero el modelo usa 'id' por defecto
-            // Asumo que el modelo está bien, si no, usa $this->inventario_id
-            'id' => $this->id, 
+            'id' => $this->inventario_id, 
             'tipo' => 'inventario',
             'atributos' => [
                 'cantidad_existencias' => (int) $this->cantidad_existencias, 

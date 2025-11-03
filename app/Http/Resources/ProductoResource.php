@@ -11,9 +11,7 @@ use App\Http\Resources\InventarioResource;
 class ProductoResource extends JsonResource
 {
     /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
+     * Transforma el recurso en un array.
      */
     public function toArray(Request $request): array
     {
@@ -27,10 +25,10 @@ class ProductoResource extends JsonResource
                 'precio' => (float) $this->precio, 
             ],
             'relaciones' => [
-                // 'inventario' es una relación HasMany. Asumo que solo quieres mostrar el primer/único registro.
+                // Usa la relación HasMany y el InventarioResource corregido.
                 'inventario' => $this->whenLoaded('inventario', function () {
                     if ($this->inventario->isNotEmpty()) {
-                         // Usar InventarioResource para formatear la relación
+                         // Usar InventarioResource para formatear el primer registro.
                         return new InventarioResource($this->inventario->first());
                     }
                     return null;
@@ -39,3 +37,4 @@ class ProductoResource extends JsonResource
         ];
     }
 }
+

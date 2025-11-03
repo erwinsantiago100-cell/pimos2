@@ -23,6 +23,9 @@ class DetallePedidoResource extends JsonResource
                 'subtotal' => (float) $this->cantidad * $this->precio_unitario,
             ],
             'relaciones' => [
+                // *** AGREGADO: Incluimos el ID del producto para visibilidad directa ***
+                'producto_id' => $this->producto_id, 
+                
                 // Incluimos la información básica del producto
                 'producto' => $this->whenLoaded('producto', function () {
                     return [

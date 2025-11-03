@@ -18,11 +18,13 @@ class PedidoResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Tu modelo usa 'id', no 'pedido_id' como PK
+        // Tu modelo usa 'id', que es el ID del Pedido
         return [
             'id' => $this->id, 
             'tipo' => 'pedido',
             'atributos' => [
+                // *** AGREGADO: Se incluye el ID del pedido para mayor claridad ***
+                'pedido_id' => $this->id,
                 'total' => (float) $this->total,
                 'estado' => $this->estado,
                 'fecha_pedido' => $this->created_at->format('Y-m-d H:i:s'),

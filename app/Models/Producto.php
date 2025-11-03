@@ -18,13 +18,19 @@ class Producto extends Model
         'precio',
     ];
 
-    // Relación: Un producto tiene muchas líneas de inventario.
+    /**
+     * Relación: Un producto tiene muchas líneas de inventario (su stock actual).
+     * @return HasMany
+     */
     public function inventario(): HasMany
     {
         return $this->hasMany(Inventario::class, 'producto_id');
     }
 
-    // Relación: Un producto puede estar en muchas líneas de detalles de pedido.
+    /**
+     * Relación: Un producto puede estar en muchas líneas de detalles de pedido.
+     * @return HasMany
+     */
     public function detallesPedidos(): HasMany
     {
         return $this->hasMany(DetallePedido::class, 'producto_id');

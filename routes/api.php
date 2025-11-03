@@ -2,39 +2,26 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Importar los controladores de la API
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\PedidoController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| Rutas de la API
 |--------------------------------------------------------------------------
-|
-| Aquí es donde puedes registrar rutas API para tu aplicación.
-|
+| Aquí se registran las rutas de la API para la aplicación.
 */
 
-// RUTA BASE DE AUTENTICACIÓN (Ruta que viene por defecto)
+// Middleware de autenticación de Sanctum (si aplica)
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// 2. RUTAS DE GESTIÓN DE RECURSOS
-
-// ProductoController: Proporciona las 5 rutas RESTful estándar (CRUD completo).
-// Genera: index, store, show, update, destroy
+// Rutas de Recursos (CRUD Completo)
+// apiResource registra automáticamente: index, store, show, update, destroy
 Route::apiResource('productos', ProductoController::class);
-
-// InventarioController: Rutas Resource para stock (index, show, update, destroy).
-// El InventarioController usa el 'producto_id' como clave en sus métodos.
-Route::apiResource('inventario', InventarioController::class)->only([
-    'index', // GET /api/inventario
-    'show',  // GET /api/inventario/{inventario} -> mapea a producto_id
-    'update', // PUT/PATCH /api/inventario/{inventario} -> mapea a producto_id
-    'destroy', // DELETE /api/inventario/{inventario} -> mapea a producto_id
-]);
-
-// PedidoController: Proporciona las rutas RESTful para Pedidos, excluyendo la eliminación (destroy).
-// Genera: index, store, show, update
-Route::apiResource('pedidos', PedidoController::class)->except(['destroy']);
+Route::apiResource('inventario', InventarioController::class);
+Route::apiResource('pedidos', PedidoController::class);
