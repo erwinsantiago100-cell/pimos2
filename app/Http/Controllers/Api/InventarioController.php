@@ -14,6 +14,24 @@ use Illuminate\Support\Facades\DB;
 class InventarioController extends Controller
 {
     /**
+     * Define los middlewares de autorización basados en los permisos de Inventario.
+     */
+    public function __construct()
+    {
+        // Permisos de Lectura
+        $this->middleware('can:inventario.ver')->only(['index', 'show']);
+        
+        // Permiso de Creación
+        $this->middleware('can:inventario.crear')->only('store');
+        
+        // Permiso de Actualización de Stock
+        $this->middleware('can:inventario.ajustar_stock')->only('update');
+        
+        // Permiso de Eliminación de Registro (Solo Admin)
+        $this->middleware('can:inventario.eliminar_registro')->only('destroy');
+    }
+    
+    /**
      * Muestra una lista de todos los registros de inventario (GET /api/inventario).
      */
     public function index()

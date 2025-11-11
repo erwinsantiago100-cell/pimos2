@@ -10,13 +10,31 @@ use App\Http\Resources\PedidoCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Requests\StorePedidoRequest; 
-use App\Http\Requests\UpdatePedidoRequest; // ¡NUEVA IMPORTACIÓN!
+use App\Http\Requests\UpdatePedidoRequest; 
 
 /**
  * Gestiona la lógica CRUD de los Pedidos.
  */
 class PedidoController extends Controller
 {
+    /**
+     * Define los middlewares de autorización basados en los permisos de Pedidos.
+     */
+    public function __construct()
+    {
+        // Permisos de Lectura (Admin, Editor)
+        $this->middleware('can:pedidos.ver')->only(['index', 'show']);
+        
+        // Permiso de Creación (Concedido a Admin, Editor, Usuario)
+        $this->middleware('can:pedidos.crear')->only('store');
+        
+        // Permiso de Procesamiento/Actualización de estado (Admin, Editor)
+        $this->middleware('can:pedidos.procesar')->only('update');
+        
+        // Permiso de Cancelación/Eliminación (Solo Admin)
+        $this->middleware('can:pedidos.cancelar')->only('destroy');
+    }
+    
     /**
      * Muestra una lista de todos los pedidos (GET /api/pedidos).
      */
@@ -121,7 +139,11 @@ class PedidoController extends Controller
 
     /**
      * Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).
-     * Ahora usa UpdatePedidoRequest y maneja la cancelación con reversión de stock.
+     * La cancelación requiere el permiso 'pedidos.cancelar', pero la función base está protegida por 'pedidos.procesar'.
+     * Si un Editor intenta cancelar, el middleware 'pedidos.procesar' lo dejará pasar, 
+     * pero la lógica interna de la función debe ser reforzada si hay una lógica muy estricta para el estado 'cancelado'.
+     * Por ahora, confiamos en que el permiso 'pedidos.procesar' es suficiente para cambiar estados
+     * y la lógica de cancelación se maneja dentro del método.
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
@@ -141,6 +163,13 @@ class PedidoController extends Controller
                 return response()->json(['error' => 'No se puede cancelar un pedido que ya fue entregado.'], 403);
             }
 
+            // ** Refuerzo de Seguridad para Cancelación:**
+            // Como el middleware es 'pedidos.procesar' (para Admin/Editor), si se detecta un intento de CANCELAR,
+            // se puede requerir el permiso más estricto ('pedidos.cancelar' - solo Admin)
+            if (!auth()->user()->can('pedidos.cancelar')) {
+                 return response()->json(['error' => 'No tiene permiso para cancelar pedidos.'], 403);
+            }
+            
             try {
                 DB::beginTransaction();
 
@@ -175,7 +204,7 @@ class PedidoController extends Controller
         // ** ACTUALIZACIÓN ESTÁNDAR (Para otros estados o total) **
         try {
             // Seguridad: No permitir cambiar nada si ya está entregado
-             if ($pedido->estado === 'entregado') {
+            if ($pedido->estado === 'entregado') {
                 return response()->json(['error' => 'No se puede modificar un pedido que ya está en estado "entregado".'], 403);
             }
             

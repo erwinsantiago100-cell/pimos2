@@ -16,6 +16,24 @@ use App\Http\Requests\UpdateProductoRequest;
 class ProductoController extends Controller
 {
     /**
+     * Define los middlewares de autorización basados en los permisos de Productos.
+     */
+    public function __construct()
+    {
+        // Permisos de Lectura (Concedido a Admin, Editor, Usuario)
+        $this->middleware('can:productos.ver')->only(['index', 'show']);
+        
+        // Permiso de Creación (Solo Admin)
+        $this->middleware('can:productos.crear')->only('store');
+        
+        // Permiso de Edición (Admin, Editor)
+        $this->middleware('can:productos.editar')->only('update');
+        
+        // Permiso de Eliminación (Solo Admin)
+        $this->middleware('can:productos.eliminar')->only('destroy');
+    }
+    
+    /**
      * Muestra una lista de todos los productos (GET /api/productos).
      */
     public function index()
