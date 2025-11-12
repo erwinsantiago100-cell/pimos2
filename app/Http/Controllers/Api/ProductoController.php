@@ -4,40 +4,35 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Producto;
-use Illuminate\Http\Request;
 use App\Http\Resources\ProductoResource; 
 use App\Http\Resources\ProductoCollection; 
 use App\Http\Requests\StoreProductoRequest; 
 use App\Http\Requests\UpdateProductoRequest; 
+use Illuminate\Http\Request; 
+use Symfony\Component\HttpFoundation\Response; // Necesario para códigos HTTP 201, 204
+
+// Trait para usar $this->authorize('permiso')
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
 
 /**
- * Gestiona la lógica CRUD de las Gomitas (Productos).
+ * Gestiona la lógica CRUD de los Productos.
  */
 class ProductoController extends Controller
 {
-    /**
-     * Define los middlewares de autorización basados en los permisos de Productos.
-     */
-    public function __construct()
-    {
-        // Permisos de Lectura (Concedido a Admin, Editor, Usuario)
-        $this->middleware('can:productos.ver')->only(['index', 'show']);
-        
-        // Permiso de Creación (Solo Admin)
-        $this->middleware('can:productos.crear')->only('store');
-        
-        // Permiso de Edición (Admin, Editor)
-        $this->middleware('can:productos.editar')->only('update');
-        
-        // Permiso de Eliminación (Solo Admin)
-        $this->middleware('can:productos.eliminar')->only('destroy');
-    }
+    // Usar el trait AuthorizesRequests para la autorización de políticas
+    use AuthorizesRequests; 
+
+    // Opcional: Si quieres usar middlewares de autenticación, es mejor
+    // dejarlos en routes/api.php para esta API.
     
     /**
      * Muestra una lista de todos los productos (GET /api/productos).
      */
     public function index()
     {
+        // Autorización basada en Spatie: el usuario debe tener el permiso 'productos.ver'
+        $this->authorize('productos.ver'); 
+
         try {
             // Carga la relación de inventario para el stock
             $productos = Producto::with('inventario')->get();
@@ -53,14 +48,17 @@ class ProductoController extends Controller
      */
     public function store(StoreProductoRequest $request)
     {
-        // La validación ocurre automáticamente
+        // Autorización basada en Spatie: el usuario debe tener el permiso 'productos.crear'
+        $this->authorize('productos.crear'); 
+
         $validatedData = $request->validated(); 
 
         try {
-            // Creamos solo con los campos del producto
+            // Asumiendo que el usuario ya está autenticado a través de Sanctum, 
+            // no lo asociamos directamente al producto a menos que sea necesario.
+            // Creamos el producto.
             $producto = Producto::create($request->except('cantidad_existencias'));
 
-            // Crear el registro de inventario inicial si se envió el stock
             if (isset($validatedData['cantidad_existencias']))
             {
                 $producto->inventario()->create([
@@ -70,10 +68,11 @@ class ProductoController extends Controller
             
             $producto->load('inventario');
 
+            // Respuesta con código 201 (Created)
             return response()->json([
                 'message' => 'Producto creado con éxito.', 
                 'data' => new ProductoResource($producto) 
-            ], 201);
+            ], Response::HTTP_CREATED);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al crear el producto.', 'message' => $e->getMessage()], 500);
@@ -85,6 +84,9 @@ class ProductoController extends Controller
      */
     public function show(int $id)
     {
+        // Autorización basada en Spatie: el usuario debe tener el permiso 'productos.ver'
+        $this->authorize('productos.ver'); 
+
         $producto = Producto::with('inventario')->find($id);
 
         if (!$producto) {
@@ -99,20 +101,28 @@ class ProductoController extends Controller
      */
     public function update(UpdateProductoRequest $request, int $id)
     {
+        // Autorización basada en Spatie: el usuario debe tener el permiso 'productos.editar'
+        $this->authorize('productos.editar');
+
         $producto = Producto::find($id);
 
         if (!$producto) {
             return response()->json(['error' => 'Producto no encontrado.'], 404);
         }
 
-        // La validación y el "sometimes" permiten actualizaciones parciales
+        /* * Si quieres replicar la política de tu maestro: 
+         * $this->authorize('update', $producto); 
+         * Requeriría que exista una ProductoPolicy que defina la lógica 'update'.
+         */
+
         $validatedData = $request->validated(); 
 
         try {
             $producto->update($validatedData); 
             $producto->load('inventario');
 
-            return response()->json(['message' => 'Producto actualizado con éxito.', 'data' => new ProductoResource($producto)], 200);
+            // Respuesta con código 200 (OK)
+            return response()->json(['message' => 'Producto actualizado con éxito.', 'data' => new ProductoResource($producto)], Response::HTTP_OK);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al actualizar el producto.', 'message' => $e->getMessage()], 500);
@@ -124,16 +134,25 @@ class ProductoController extends Controller
      */
     public function destroy(int $id)
     {
+        // Autorización basada en Spatie: el usuario debe tener el permiso 'productos.eliminar'
+        $this->authorize('productos.eliminar');
+        
         $producto = Producto::find($id);
 
         if (!$producto) {
             return response()->json(['error' => 'Producto no encontrado.'], 404);
         }
-
+        
+        /* * Si quieres replicar la política de tu maestro: 
+         * $this->authorize('delete', $producto); 
+         * Requeriría que exista una ProductoPolicy que defina la lógica 'delete'.
+         */
+        
         try {
             $producto->delete();
             
-            return response()->json(['message' => 'Producto eliminado con éxito.'], 200);
+            // Respuesta con código 204 (No Content)
+            return response()->json(null, Response::HTTP_NO_CONTENT);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al eliminar el producto.', 'message' => $e->getMessage()], 500);

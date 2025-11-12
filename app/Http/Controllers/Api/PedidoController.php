@@ -11,41 +11,36 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Requests\StorePedidoRequest; 
 use App\Http\Requests\UpdatePedidoRequest; 
+use Symfony\Component\HttpFoundation\Response; // Importar la clase Response para los códigos de estado HTTP
+
+// Importar el trait AuthorizesRequests para la autorización de políticas
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
 
 /**
  * Gestiona la lógica CRUD de los Pedidos.
  */
 class PedidoController extends Controller
 {
-    /**
-     * Define los middlewares de autorización basados en los permisos de Pedidos.
-     */
-    public function __construct()
-    {
-        // Permisos de Lectura (Admin, Editor)
-        $this->middleware('can:pedidos.ver')->only(['index', 'show']);
-        
-        // Permiso de Creación (Concedido a Admin, Editor, Usuario)
-        $this->middleware('can:pedidos.crear')->only('store');
-        
-        // Permiso de Procesamiento/Actualización de estado (Admin, Editor)
-        $this->middleware('can:pedidos.procesar')->only('update');
-        
-        // Permiso de Cancelación/Eliminación (Solo Admin)
-        $this->middleware('can:pedidos.cancelar')->only('destroy');
-    }
+    // Usar el trait AuthorizesRequests
+    use AuthorizesRequests; 
+
+    // Se elimina el método __construct y los middlewares.
+    // La autorización se maneja directamente en cada método con $this->authorize.
     
     /**
      * Muestra una lista de todos los pedidos (GET /api/pedidos).
      */
     public function index()
     {
+        // Permiso de Lectura (pedidos.ver)
+        $this->authorize('pedidos.ver'); 
+
         try {
             $pedidos = Pedido::with(['user', 'detallesPedidos.producto.inventario'])->paginate(10);
             return new PedidoCollection($pedidos);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al obtener los pedidos.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al obtener los pedidos.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -54,7 +49,9 @@ class PedidoController extends Controller
      */
     public function store(StorePedidoRequest $request)
     {
-        // Se mantiene la implementación de deducción de stock, usando StorePedidoRequest
+        // Permiso de Creación (pedidos.crear)
+        $this->authorize('pedidos.crear'); 
+
         $validatedData = $request->validated();
         $total = 0;
         
@@ -75,7 +72,7 @@ class PedidoController extends Controller
                 
                 if (!$producto) {
                     DB::rollBack();
-                    return response()->json(['error' => 'Producto no encontrado: ID ' . $detalle['producto_id']], 404);
+                    return response()->json(['error' => 'Producto no encontrado: ID ' . $detalle['producto_id']], Response::HTTP_NOT_FOUND);
                 }
 
                 $inventario = $producto->inventario->first();
@@ -100,7 +97,7 @@ class PedidoController extends Controller
                     return response()->json([
                         'error' => 'Stock insuficiente para ' . $producto->nombre_gomita,
                         'disponible' => $stock
-                    ], 400);
+                    ], Response::HTTP_BAD_REQUEST);
                 }
             }
 
@@ -115,11 +112,11 @@ class PedidoController extends Controller
             return response()->json([
                 'message' => 'Pedido creado y stock actualizado con éxito.', 
                 'data' => new PedidoResource($pedido)
-            ], 201);
+            ], Response::HTTP_CREATED);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => 'Error al crear el pedido.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al crear el pedido.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -128,10 +125,13 @@ class PedidoController extends Controller
      */
     public function show(int $id)
     {
+        // Permiso de Lectura (pedidos.ver)
+        $this->authorize('pedidos.ver'); 
+
         $pedido = Pedido::with(['user', 'detallesPedidos.producto.inventario'])->find($id);
 
         if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
+            return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
         }
 
         return new PedidoResource($pedido);
@@ -139,18 +139,17 @@ class PedidoController extends Controller
 
     /**
      * Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).
-     * La cancelación requiere el permiso 'pedidos.cancelar', pero la función base está protegida por 'pedidos.procesar'.
-     * Si un Editor intenta cancelar, el middleware 'pedidos.procesar' lo dejará pasar, 
-     * pero la lógica interna de la función debe ser reforzada si hay una lógica muy estricta para el estado 'cancelado'.
-     * Por ahora, confiamos en que el permiso 'pedidos.procesar' es suficiente para cambiar estados
-     * y la lógica de cancelación se maneja dentro del método.
+     * Permite cambiar el estado (procesar) o cancelar (requiere permiso estricto).
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
+        // Permiso base para cambiar estados (pedidos.procesar)
+        $this->authorize('pedidos.procesar'); 
+
         $pedido = Pedido::with('detallesPedidos.producto.inventario')->find($id); // Cargar detalles para la reversión
 
         if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
+            return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
         }
 
         $validatedData = $request->validated();
@@ -160,15 +159,13 @@ class PedidoController extends Controller
             
             // Seguridad: No permitir cancelar si ya está entregado
             if ($pedido->estado === 'entregado') {
-                return response()->json(['error' => 'No se puede cancelar un pedido que ya fue entregado.'], 403);
+                return response()->json(['error' => 'No se puede cancelar un pedido que ya fue entregado.'], Response::HTTP_FORBIDDEN);
             }
 
-            // ** Refuerzo de Seguridad para Cancelación:**
-            // Como el middleware es 'pedidos.procesar' (para Admin/Editor), si se detecta un intento de CANCELAR,
-            // se puede requerir el permiso más estricto ('pedidos.cancelar' - solo Admin)
-            if (!auth()->user()->can('pedidos.cancelar')) {
-                 return response()->json(['error' => 'No tiene permiso para cancelar pedidos.'], 403);
-            }
+            // ** Autorización ESTRICTA para Cancelación:**
+            // Usamos authorize para verificar que el usuario tenga el permiso más alto ('pedidos.cancelar')
+            // Si falla, lanza 403 automáticamente.
+            $this->authorize('pedidos.cancelar');
             
             try {
                 DB::beginTransaction();
@@ -193,11 +190,11 @@ class PedidoController extends Controller
                 return response()->json([
                     'message' => 'Pedido CANCELADO con éxito. Stock revertido.', 
                     'data' => new PedidoResource($pedido)
-                ], 200);
+                ], Response::HTTP_OK);
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                return response()->json(['error' => 'Error al cancelar el pedido y revertir el stock.', 'message' => $e->getMessage()], 500);
+                return response()->json(['error' => 'Error al cancelar el pedido y revertir el stock.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
         }
         
@@ -205,7 +202,7 @@ class PedidoController extends Controller
         try {
             // Seguridad: No permitir cambiar nada si ya está entregado
             if ($pedido->estado === 'entregado') {
-                return response()->json(['error' => 'No se puede modificar un pedido que ya está en estado "entregado".'], 403);
+                return response()->json(['error' => 'No se puede modificar un pedido que ya está en estado "entregado".'], Response::HTTP_FORBIDDEN);
             }
             
             $pedido->update($validatedData);
@@ -214,10 +211,10 @@ class PedidoController extends Controller
             return response()->json([
                 'message' => 'Pedido actualizado con éxito.', 
                 'data' => new PedidoResource($pedido)
-            ], 200);
+            ], Response::HTTP_OK);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al actualizar el pedido.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al actualizar el pedido.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -226,15 +223,18 @@ class PedidoController extends Controller
      */
     public function destroy(int $id)
     {
+        // Permiso de Cancelación/Eliminación (pedidos.cancelar)
+        $this->authorize('pedidos.cancelar');
+
         $pedido = Pedido::with('detallesPedidos.producto.inventario')->find($id);
 
         if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], 404);
+            return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
         }
 
         // Condición de seguridad
         if ($pedido->estado === 'entregado') {
-             return response()->json(['error' => 'No se puede eliminar o cancelar un pedido ya entregado.'], 403);
+             return response()->json(['error' => 'No se puede eliminar o cancelar un pedido ya entregado.'], Response::HTTP_FORBIDDEN);
         }
 
         try {
@@ -255,14 +255,14 @@ class PedidoController extends Controller
             
             DB::commit();
 
-            return response()->json(['message' => 'Pedido y detalles eliminados con éxito. Stock revertido.'], 200);
+            return response()->json(['message' => 'Pedido y detalles eliminados con éxito. Stock revertido.'], Response::HTTP_NO_CONTENT);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
                 'error' => 'Error al eliminar el pedido y revertir el stock.', 
                 'message' => $e->getMessage()
-            ], 500);
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 }

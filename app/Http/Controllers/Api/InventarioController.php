@@ -6,46 +6,46 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventario;
 use App\Http\Resources\InventarioResource;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\Response; // Importar la clase Response para los códigos de estado HTTP
+
+// Importar el trait AuthorizesRequests para la autorización de políticas
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
 
 /**
  * Gestiona la lógica CRUD para el Inventario (Stock).
  */
 class InventarioController extends Controller
 {
-    /**
-     * Define los middlewares de autorización basados en los permisos de Inventario.
-     */
-    public function __construct()
-    {
-        // Permisos de Lectura
-        $this->middleware('can:inventario.ver')->only(['index', 'show']);
-        
-        // Permiso de Creación
-        $this->middleware('can:inventario.crear')->only('store');
-        
-        // Permiso de Actualización de Stock
-        $this->middleware('can:inventario.ajustar_stock')->only('update');
-        
-        // Permiso de Eliminación de Registro (Solo Admin)
-        $this->middleware('can:inventario.eliminar_registro')->only('destroy');
-    }
+    // Usar el trait AuthorizesRequests
+    use AuthorizesRequests; 
+
+    // Se elimina el método __construct y los middlewares.
+    // La autorización se maneja directamente en cada método con $this->authorize.
     
     /**
      * Muestra una lista de todos los registros de inventario (GET /api/inventario).
      */
     public function index()
     {
-        $inventarios = Inventario::with('producto')->get();
-        return InventarioResource::collection($inventarios);
+        // Autorización: Permiso de Lectura
+        $this->authorize('inventario.ver'); 
+
+        try {
+            $inventarios = Inventario::with('producto')->get();
+            return InventarioResource::collection($inventarios);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener el inventario.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     
     /**
      * Almacena un nuevo registro de inventario (POST /api/inventario).
-     * Se usa para dar stock a un producto que aún no tiene inventario.
      */
     public function store(Request $request)
     {
+        // Autorización: Permiso de Creación
+        $this->authorize('inventario.crear'); 
+
         // Validación: el producto debe existir y no debe tener ya un registro de inventario
         $validated = $request->validate([
             'producto_id' => 'required|exists:productos,id|unique:inventarios,producto_id',
@@ -56,13 +56,14 @@ class InventarioController extends Controller
             $inventario = Inventario::create($validated);
             $inventario->load('producto');
 
+            // Devolver respuesta 201 (Created)
             return response()->json([
                 'message' => 'Registro de inventario creado con éxito.', 
                 'data' => new InventarioResource($inventario)
-            ], 201);
+            ], Response::HTTP_CREATED);
             
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al crear el registro de inventario.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al crear el registro de inventario.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
     
@@ -71,6 +72,9 @@ class InventarioController extends Controller
      */
     public function show(Inventario $inventario)
     {
+        // Autorización: Permiso de Lectura
+        $this->authorize('inventario.ver'); 
+
         $inventario->load('producto');
         return new InventarioResource($inventario);
     }
@@ -80,6 +84,9 @@ class InventarioController extends Controller
      */
     public function update(Request $request, Inventario $inventario)
     {
+        // Autorización: Permiso de Actualización de Stock
+        $this->authorize('inventario.ajustar_stock');
+
         $validated = $request->validate([
             'cantidad_existencias' => 'sometimes|required|integer|min:0',
         ]);
@@ -87,10 +94,12 @@ class InventarioController extends Controller
         try {
             $inventario->update($validated);
             $inventario->load('producto');
-            return response()->json(['message' => 'Inventario actualizado con éxito.', 'data' => new InventarioResource($inventario)], 200);
+            
+            // Devolver respuesta 200 (OK)
+            return response()->json(['message' => 'Inventario actualizado con éxito.', 'data' => new InventarioResource($inventario)], Response::HTTP_OK);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al actualizar el inventario.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al actualizar el inventario.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
     
@@ -99,11 +108,16 @@ class InventarioController extends Controller
      */
     public function destroy(Inventario $inventario)
     {
+        // Autorización: Permiso de Eliminación de Registro (Solo Admin)
+        $this->authorize('inventario.eliminar_registro');
+        
         try {
             $inventario->delete();
-            return response()->json(['message' => 'Registro de inventario eliminado con éxito.'], 200);
+            
+            // Devolver respuesta 204 (No Content)
+            return response()->json(null, Response::HTTP_NO_CONTENT);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al eliminar el registro de inventario.', 'message' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al eliminar el registro de inventario.', 'message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 }
