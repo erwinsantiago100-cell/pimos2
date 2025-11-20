@@ -101,7 +101,9 @@ class ProductoTest extends TestCase
 
         // Verificar que el producto y su stock inicial se hayan guardado en la DB
         $this->assertDatabaseHas('productos', ['nombre_gomita' => $data['nombre_gomita']]);
-        $this->assertDatabaseHas('inventarios', ['producto_id' => $response['id'], 'cantidad_existencias' => 100]);
+
+        // CORRECCIÓN: Acceder al ID correctamente a través de la clave 'data' del JSON.
+        $this->assertDatabaseHas('inventarios', ['producto_id' => $response->json('data.id'), 'cantidad_existencias' => 100]);
     }
 
     public function test_usuario_regular_no_puede_crear_un_producto_store_forbidden()

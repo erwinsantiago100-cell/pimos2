@@ -21,7 +21,7 @@ class ProductoResource extends JsonResource
             'atributos' => [
                 'nombre' => $this->nombre_gomita,
                 'sabor' => $this->sabor,
-                'tamaño' => $this->tamano,
+                'tamano' => $this->tamano, // CLAVE CORREGIDA: Usando 'tamano' sin tilde para coincidir con el test.
                 'precio' => (float) $this->precio, 
             ],
             'relaciones' => [
@@ -29,7 +29,7 @@ class ProductoResource extends JsonResource
                 'inventario' => $this->whenLoaded('inventario', function () {
                     if ($this->inventario->isNotEmpty()) {
                          // Usar InventarioResource para formatear el primer registro.
-                        return new InventarioResource($this->inventario->first());
+                         return new InventarioResource($this->inventario->first());
                     }
                     return null;
                 }),
@@ -37,4 +37,3 @@ class ProductoResource extends JsonResource
         ];
     }
 }
-
