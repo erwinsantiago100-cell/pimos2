@@ -24,6 +24,8 @@ class UpdatePedidoRequest extends FormRequest
      */
     public function rules(): array
     {
+        // NOTA: Si necesitas actualizar los detalles, debes añadir las reglas aquí
+        // junto con la validación de stock por Closure, similar a StorePedidoRequest.
         return [
             'estado' => 'sometimes|required|string|in:pendiente,enviado,cancelado,entregado',
             'total' => 'sometimes|required|numeric|min:0.01',

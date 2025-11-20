@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\Validator; // Importar la interfaz Validator 
+use Illuminate\Http\Exceptions\HttpResponseException; // Importar la excepción HttpResponseException 
 use Illuminate\Foundation\Http\FormRequest;
-use App\Rules\CheckStock; // Importar la regla de stock
+use App\Models\Inventario; // Necesario para la validación del stock
 
 /**
  * Valida los datos al crear un nuevo Pedido.
@@ -38,8 +40,31 @@ class StorePedidoRequest extends FormRequest
             // Reglas para cada elemento dentro del array 'detalles'
             'detalles.*.producto_id' => ['required', 'integer', 'exists:productos,id'],
             
-            // Regla de validación personalizada: verifica que haya suficiente stock.
-            'detalles.*.cantidad' => ['required', 'integer', 'min:1', new CheckStock()],
+            // Regla de validación de stock usando Closure (Solución al error 500)
+            'detalles.*.cantidad' => [
+                'required', 
+                'integer', 
+                'min:1', 
+                
+                function ($attribute, $value, $fail) {
+                    // $value es la cantidad solicitada.
+                    $cantidadSolicitada = (int) $value;
+
+                    // Extraer el índice del array 'detalles'
+                    $index = explode('.', $attribute)[1];
+                    
+                    // Obtener el producto_id correspondiente
+                    $productoId = $this->input('detalles')[$index]['producto_id'] ?? null;
+
+                    // Verificar stock
+                    $inventario = Inventario::where('producto_id', $productoId)->first();
+                    $stockDisponible = $inventario ? $inventario->cantidad_existencias : 0;
+
+                    if ($cantidadSolicitada > $stockDisponible) {
+                        $fail("Stock insuficiente para el producto ID $productoId. Disponible: $stockDisponible.");
+                    }
+                },
+            ],
             
             'detalles.*.precio_unitario' => 'nullable|numeric|min:0.01', 
         ];
@@ -56,6 +81,18 @@ class StorePedidoRequest extends FormRequest
             'detalles.min' => 'El pedido debe contener al menos un producto.',
             'detalles.*.producto_id.exists' => 'El producto con el ID proporcionado no existe.',
             'detalles.*.cantidad.min' => 'La cantidad solicitada debe ser al menos 1.',
+            // El mensaje de stock es manejado por el closure
         ];
+    }
+
+    /**
+     * Manejar la falla de validación y devolver una respuesta JSON personalizada (422).
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'Error de validación al crear un pedido',
+            'errors' => $validator->errors()
+        ], 422));
     }
 }
