@@ -13,6 +13,7 @@ use App\Http\Requests\StorePedidoRequest;
 use App\Http\Requests\UpdatePedidoRequest; 
 use Symfony\Component\HttpFoundation\Response; 
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests; 
+use Illuminate\Support\Facades\Log; // Importar Facade Log para un logging más limpio
 
 /**
  * Gestiona la lógica CRUD de los Pedidos, incluyendo la deducción y reversión de stock.
@@ -32,10 +33,12 @@ class PedidoController extends Controller
         $this->authorize('viewAny', Pedido::class); 
 
         try {
+            // Cargar las relaciones necesarias para el resource
             $pedidos = Pedido::with(['user', 'detallesPedidos.producto.inventario'])->paginate(10);
             return new PedidoCollection($pedidos);
 
         } catch (\Exception $e) {
+            Log::error("Error al obtener la lista de pedidos: " . $e->getMessage());
             return response()->json([
                 'error' => 'Error al obtener los pedidos.', 
                 'message' => $e->getMessage()
@@ -53,6 +56,7 @@ class PedidoController extends Controller
         $validatedData = $request->validated();
         $total = 0;
         
+        // Determinar el ID del usuario: usar el proporcionado o el autenticado
         $userId = $validatedData['user_id'] ?? auth()->id();
 
         if (!$userId) {
@@ -64,31 +68,28 @@ class PedidoController extends Controller
 
             $pedido = Pedido::create([
                 'user_id' => $userId, 
+                // Estado por defecto 'pendiente'
                 'estado' => $validatedData['estado'] ?? 'pendiente', 
-                'total' => 0,
+                'total' => 0, // El total se recalculará y actualizará al final
             ]);
 
             $detalles = [];
             foreach ($validatedData['detalles'] as $detalle) {
-                // Bloquear el producto para asegurar la atomicidad del inventario antes de la deducción
+                // 1. Bloquear el producto (y por ende su inventario) para el control de concurrencia
                 $producto = Producto::lockForUpdate()->find($detalle['producto_id']);
                 
-                // CRÍTICO: Comprobación segura del producto
                 if (!$producto) {
                     DB::rollBack();
                     return response()->json(['error' => 'Producto no encontrado: ID ' . $detalle['producto_id']], Response::HTTP_NOT_FOUND);
                 }
 
-                // CRÍTICO: Usar el operador nullsafe para obtener el inventario (PHP 8.0+),
-                // o usar una comprobación ternaria si es una versión anterior. 
-                // La variable $inventario será null si la relación no existe, previniendo el Error 500.
-                $inventario = $producto->inventario; 
+                // Usar el operador nullsafe para obtener el inventario (PHP 8.0+)
+                $inventario = $producto->inventario; // Se asume que la relación existe en el modelo Producto
                 $cantidadSolicitada = (int) $detalle['cantidad'];
                 $precioUnitario = (float) $producto->precio; 
                 $subtotal = $cantidadSolicitada * $precioUnitario;
 
-                // Deducir Inventario y verificar stock de nuevo dentro de la transacción bloqueada
-                // Se verifica que $inventario no sea null
+                // 2. Verificar stock y deducir dentro de la transacción bloqueada
                 if ($inventario && $inventario->cantidad_existencias >= $cantidadSolicitada) {
                     $inventario->cantidad_existencias -= $cantidadSolicitada;
                     $inventario->save();
@@ -110,13 +111,14 @@ class PedidoController extends Controller
                 }
             }
 
-            // Actualizar detalles y total del pedido
+            // 3. Crear detalles y actualizar total del pedido
             $pedido->detallesPedidos()->createMany($detalles);
             $pedido->total = $total;
             $pedido->save();
 
             DB::commit();
 
+            // Cargar relaciones finales para la respuesta
             $pedido->load(['user', 'detallesPedidos.producto.inventario']);
             return response()->json([
                 'message' => 'Pedido creado y stock actualizado con éxito.', 
@@ -125,8 +127,7 @@ class PedidoController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            // Logging para ayudar en la depuración
-            \Log::error("Error al crear el pedido: " . $e->getMessage()); 
+            Log::error("Error al crear el pedido: " . $e->getMessage()); 
             
             return response()->json([
                 'error' => 'Error interno al crear el pedido.', 
@@ -146,6 +147,7 @@ class PedidoController extends Controller
             return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
         }
         
+        // Autorización para ver (permite al dueño y al Admin)
         $this->authorize('view', $pedido); 
 
         return new PedidoResource($pedido);
@@ -153,7 +155,7 @@ class PedidoController extends Controller
 
     /**
      * Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).
-     * Maneja la cancelación (por dueño) o la actualización de estado (por Admin).
+     * Maneja la cancelación (por dueño o Admin) o la actualización de estado (solo por Admin).
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
@@ -191,10 +193,10 @@ class PedidoController extends Controller
                 foreach ($pedido->detallesPedidos as $detalle) {
                     $producto = Producto::lockForUpdate()->find($detalle->producto_id);
                     
-                    // CRÍTICO: Comprobación doble para evitar Error 500 si el producto o inventario no existen
+                    // Usar operador nullsafe para acceder al inventario de forma segura
                     $inventario = $producto?->inventario; 
 
-                    if ($inventario) { 
+                    if ($inventario) { // Comprobación segura
                         $inventario->cantidad_existencias += $detalle->cantidad;
                         $inventario->save();
                     }
@@ -212,7 +214,7 @@ class PedidoController extends Controller
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                \Log::error("Error al cancelar pedido {$pedido->id}: " . $e->getMessage());
+                Log::error("Error al cancelar pedido {$pedido->id}: " . $e->getMessage());
 
                 return response()->json([
                     'error' => 'Error al cancelar el pedido y revertir el stock.'
@@ -220,9 +222,9 @@ class PedidoController extends Controller
             }
         }
         
-        // ** ACTUALIZACIÓN ESTÁNDAR (Para otros estados como 'enviado', 'entregado') **
+        // ** ACTUALIZACIÓN ESTÁNDAR (Para otros estados como 'enviado', 'entregado' por Admin) **
         
-        // Seguridad: No permitir cambiar el estado si ya está entregado o cancelado
+        // Seguridad: No permitir cambiar el estado si ya está entregado o cancelado (salvo la propia cancelación manejada arriba)
         if ($pedido->estado === 'entregado' || $pedido->estado === 'cancelado') {
             return response()->json(['error' => 'No se puede modificar un pedido que ya está en estado "entregado" o "cancelado".'], Response::HTTP_FORBIDDEN);
         }
@@ -237,6 +239,7 @@ class PedidoController extends Controller
             ], Response::HTTP_OK);
 
         } catch (\Exception $e) {
+            Log::error("Error al actualizar pedido {$pedido->id}: " . $e->getMessage());
             return response()->json([
                 'error' => 'Error al actualizar el pedido.', 
                 'message' => $e->getMessage()
@@ -246,6 +249,7 @@ class PedidoController extends Controller
 
     /**
      * Elimina un pedido y revierte el inventario (DELETE /api/pedidos/{id}).
+     * Nota: Normalmente, solo los Admins pueden eliminar, y solo pedidos no entregados/cancelados.
      */
     public function destroy(int $id)
     {
@@ -268,8 +272,10 @@ class PedidoController extends Controller
 
             // 1. Revertir el stock al inventario
             foreach ($pedido->detallesPedidos as $detalle) {
+                // Bloquear para garantizar atomicidad
                 $producto = Producto::lockForUpdate()->find($detalle->producto_id);
-                // CRÍTICO: Comprobación doble para evitar Error 500 si el producto o inventario no existen
+                
+                // Usar operador nullsafe para acceder al inventario de forma segura
                 $inventario = $producto?->inventario; 
 
                 if ($inventario) { // Comprobación segura
@@ -278,7 +284,7 @@ class PedidoController extends Controller
                 }
             }
 
-            // 2. Eliminar el pedido
+            // 2. Eliminar el pedido (lo cual eliminará los detalles en cascada si está configurado en la DB)
             $pedido->delete();
             
             DB::commit();
@@ -287,7 +293,7 @@ class PedidoController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error("Error al eliminar pedido {$pedido->id}: " . $e->getMessage());
+            Log::error("Error al eliminar pedido {$pedido->id}: " . $e->getMessage());
             
             return response()->json([
                 'error' => 'Error al eliminar el pedido y revertir el stock.'
