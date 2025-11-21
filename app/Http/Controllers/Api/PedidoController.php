@@ -35,8 +35,8 @@ class PedidoController extends Controller
             
             // Bloquear explícitamente el Inventario para la reversión
             $inventario = Inventario::where('producto_id', $detalle->producto_id)
-                                        ->lockForUpdate()
-                                        ->first();
+                                         ->lockForUpdate()
+                                         ->first();
 
             if ($inventario) {
                 // Devolver las unidades al inventario
@@ -194,8 +194,8 @@ class PedidoController extends Controller
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
-        // CORRECCIÓN: Cargamos todas las relaciones anidadas para evitar problemas de Lazy Loading/Observers
-        $pedido = Pedido::with(['detallesPedidos.producto.inventario'])->find($id); 
+        // Cargar detalles necesarios para la reversión de stock/autorización
+        $pedido = Pedido::with('detallesPedidos')->find($id); 
 
         if (!$pedido) {
             return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
@@ -228,9 +228,7 @@ class PedidoController extends Controller
                 $this->revertirStock($pedido);
                 
                 // 2. Actualizar el estado del pedido
-                // CORRECCIÓN: Asignamos propiedad y usamos save() en lugar de update() para evitar problemas de mass assignment o triggers
-                $pedido->estado = 'cancelado'; 
-                $pedido->save();
+                $pedido->update(['estado' => 'cancelado']);
                 
                 DB::commit();
 
