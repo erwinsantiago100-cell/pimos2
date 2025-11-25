@@ -16,7 +16,11 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Gestiona la lógica CRUD de los Pedidos, incluyendo la deducción y reversión de stock.
+ * @OA\Tag(
+ * name="Pedidos",
+ * description="Operaciones relacionadas con la gestión de Pedidos y la lógica de Inventario."
+ * )
+ * * Gestiona la lógica CRUD de los Pedidos, incluyendo la deducción y reversión de stock.
  * Utiliza transacciones y bloqueo pesimista (lockForUpdate) para garantizar la atomicidad del inventario.
  */
 class PedidoController extends Controller
@@ -35,8 +39,8 @@ class PedidoController extends Controller
             
             // Bloquear explícitamente el Inventario para la reversión
             $inventario = Inventario::where('producto_id', $detalle->producto_id)
-                                         ->lockForUpdate()
-                                         ->first();
+                                    ->lockForUpdate()
+                                    ->first();
 
             if ($inventario) {
                 // Devolver las unidades al inventario
@@ -50,8 +54,26 @@ class PedidoController extends Controller
     }
 
     /**
-     * Muestra una lista de todos los pedidos (GET /api/pedidos).
-     * Solo para Administradores.
+     * @OA\Get(
+     * path="/api/pedidos",
+     * summary="Consultar lista de pedidos",
+     * description="Retorna una lista paginada de todos los pedidos. Requiere permisos de Administrador.",
+     * tags={"Pedidos"},
+     * security={{"bearer_token":{}}},
+     * @OA\Response(
+     * response=200,
+     * description="Lista de pedidos obtenida con éxito.",
+     * @OA\JsonContent(type="array", @OA\Items(ref="#/components/schemas/PedidoResource"))
+     * ),
+     * @OA\Response(
+     * response=401,
+     * description="No autenticado (Token Bearer ausente o inválido)."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No autorizado (El usuario no es Administrador)."
+     * )
+     * )
      */
     public function index()
     {
@@ -73,7 +95,60 @@ class PedidoController extends Controller
     }
 
     /**
-     * Almacena un nuevo pedido y deduce el inventario (POST /api/pedidos).
+     * @OA\Post(
+     * path="/api/pedidos",
+     * summary="Crear un nuevo pedido",
+     * description="Crea un pedido, calcula el total y deduce el inventario mediante una transacción de base de datos.",
+     * tags={"Pedidos"},
+     * security={{"bearer_token":{}}},
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * required={"detalles"},
+     * @OA\Property(
+     * property="user_id", 
+     * type="integer", 
+     * description="Opcional. ID del usuario, si no se proporciona, usa el autenticado.", 
+     * example="1"
+     * ),
+     * @OA\Property(
+     * property="detalles", 
+     * type="array", 
+     * description="Lista de productos y cantidades a ordenar.",
+     * @OA\Items(
+     * required={"producto_id", "cantidad"},
+     * @OA\Property(property="producto_id", type="integer", example=1),
+     * @OA\Property(property="cantidad", type="integer", example=2)
+     * )
+     * )
+     * )
+     * ),
+     * @OA\Response(
+     * response=201,
+     * description="Pedido creado y stock deducido con éxito.",
+     * @OA\JsonContent(
+     * type="object", 
+     * @OA\Property(property="message", type="string", example="Pedido creado y stock actualizado con éxito."),
+     * @OA\Property(property="data", ref="#/components/schemas/PedidoResource")
+     * )
+     * ),
+     * @OA\Response(
+     * response=400,
+     * description="Stock insuficiente o datos de detalle inválidos."
+     * ),
+     * @OA\Response(
+     * response=401,
+     * description="No autenticado."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No autorizado para crear pedidos."
+     * ),
+     * @OA\Response(
+     * response=404,
+     * description="Producto o inventario no encontrado."
+     * )
+     * )
      */
     public function store(StorePedidoRequest $request)
     {
@@ -105,9 +180,11 @@ class PedidoController extends Controller
                 $cantidadSolicitada = (int) $detalle['cantidad'];
                 
                 // 1. Bloquear explícitamente el Inventario y obtener el producto relacionado
-                $inventario = Inventario::where('producto_id', $detalle['producto_id'])
-                                             ->lockForUpdate()
-                                             ->first();
+                // MEJORA: Eager loading de 'producto' para asegurar que esté disponible.
+                $inventario = Inventario::with('producto') 
+                                        ->where('producto_id', $detalle['producto_id'])
+                                        ->lockForUpdate()
+                                        ->first();
 
                 if (!$inventario) {
                     DB::rollBack();
@@ -172,7 +249,37 @@ class PedidoController extends Controller
     }
 
     /**
-     * Muestra un pedido específico (GET /api/pedidos/{id}).
+     * @OA\Get(
+     * path="/api/pedidos/{id}",
+     * summary="Consultar un pedido específico",
+     * description="Retorna los detalles de un pedido por su ID. Accesible por el dueño del pedido o un Administrador.",
+     * tags={"Pedidos"},
+     * security={{"bearer_token":{}}},
+     * @OA\Parameter(
+     * name="id",
+     * in="path",
+     * required=true,
+     * description="ID del pedido a consultar.",
+     * @OA\Schema(type="integer", example=1)
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Pedido obtenido con éxito.",
+     * @OA\JsonContent(ref="#/components/schemas/PedidoResource")
+     * ),
+     * @OA\Response(
+     * response=401,
+     * description="No autenticado."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No autorizado (No es el dueño ni Administrador)."
+     * ),
+     * @OA\Response(
+     * response=404,
+     * description="Pedido no encontrado."
+     * )
+     * )
      */
     public function show(int $id)
     {
@@ -188,94 +295,186 @@ class PedidoController extends Controller
         return new PedidoResource($pedido);
     }
 
-    /**
+   /**
      * Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).
-     * Maneja la cancelación (por dueño o Admin) o la actualización de estado (solo por Admin).
+     * * @OA\Patch(
+     * path="/api/pedidos/{id}",
+     * tags={"Pedidos"},
+     * summary="Actualiza el estado o el total de un pedido",
+     * security={{"sanctum": {}}},
+     * @OA\Parameter(
+     * name="id",
+     * in="path",
+     * required=true,
+     * description="ID del pedido a actualizar",
+     * @OA\Schema(type="integer")
+     * ),
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * @OA\Property(property="estado", type="string", enum={"pendiente", "enviado", "cancelado", "entregado"}, example="enviado", description="Nuevo estado del pedido."),
+     * @OA\Property(property="total", type="number", format="float", example=55.99, description="Nuevo total del pedido (opcional).")
+     * )
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Pedido actualizado o cancelado con éxito (con reversión de stock).",
+     * @OA\JsonContent(
+     * @OA\Property(property="message", type="string", example="Pedido actualizado con éxito."),
+     * @OA\Property(property="data", ref="#/components/schemas/PedidoResource") 
+     * )
+     * ),
+     * @OA\Response(
+     * response=404,
+     * description="Pedido no encontrado."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No se puede cambiar el estado de un pedido ya entregado."
+     * ),
+     * @OA\Response(
+     * response=500,
+     * description="Error interno al actualizar o cancelar el pedido."
+     * )
+     * )
+     * * @OA\Put(
+     * path="/api/pedidos/{id}",
+     * tags={"Pedidos"},
+     * summary="Reemplaza o actualiza completamente un pedido (igual que PATCH para este recurso)",
+     * security={{"sanctum": {}}},
+     * @OA\Parameter(
+     * name="id",
+     * in="path",
+     * required=true,
+     * description="ID del pedido a actualizar",
+     * @OA\Schema(type="integer")
+     * ),
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * @OA\Property(property="estado", type="string", enum={"pendiente", "enviado", "cancelado", "entregado"}, example="enviado", description="Nuevo estado del pedido."),
+     * @OA\Property(property="total", type="number", format="float", example=55.99, description="Nuevo total del pedido (opcional).")
+     * )
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Pedido actualizado o cancelado con éxito (con reversión de stock).",
+     * @OA\JsonContent(
+     * @OA\Property(property="message", type="string", example="Pedido actualizado con éxito."),
+     * @OA\Property(property="data", ref="#/components/schemas/PedidoResource") 
+     * )
+     * ),
+     * @OA\Response(
+     * response=404,
+     * description="Pedido no encontrado."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No se puede cambiar el estado de un pedido ya entregado."
+     * ),
+     * @OA\Response(
+     * response=500,
+     * description="Error interno al actualizar o cancelar el pedido."
+     * )
+     * )
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
-        // Cargar detalles necesarios para la reversión de stock/autorización
-        $pedido = Pedido::with('detallesPedidos')->find($id); 
+        $pedido = Pedido::find($id);
 
         if (!$pedido) {
-            return response()->json(['error' => 'Pedido no encontrado.'], Response::HTTP_NOT_FOUND);
+            // ESTE DEBE SER SIEMPRE EL PRIMER CHEQUEO: Verifica que $pedido NO sea nulo
+            return response()->json(['error' => 'Pedido no encontrado.'], 404);
         }
 
+        // Ya no necesitamos la validación manual, el FormRequest lo hace.
         $validatedData = $request->validated();
-        $isCancellation = isset($validatedData['estado']) && $validatedData['estado'] === 'cancelado';
         
-        // ** LÓGICA DE AUTORIZACIÓN **
-        if ($isCancellation) {
-            // Si intenta cancelar, autorizar usando la política 'cancel' (permite al dueño)
-            $this->authorize('cancel', $pedido);
-        } else {
-            // Para cualquier otra actualización, autorizar usando la política 'update' (solo Admin)
-            $this->authorize('update', $pedido); 
-        }
-
-        // ** LÓGICA DE CANCELACIÓN (Reversión de Stock) **
-        if ($isCancellation && $pedido->estado !== 'cancelado') {
-            
-            // Seguridad: No permitir cancelar si ya está entregado
-            if ($pedido->estado === 'entregado') {
-                return response()->json(['error' => 'No se puede cancelar un pedido que ya fue entregado.'], Response::HTTP_FORBIDDEN);
+        // 1. COMPROBACIÓN DE ESTADO FINAL (Lógica del usuario, colocada correctamente)
+        // Si el pedido ya está entregado o cancelado, se considera un estado final
+        // y se bloquea CUALQUIER otra actualización.
+        if ($pedido->estado === 'entregado' || $pedido->estado === 'cancelado') {
+             // Solo si hay datos válidos en la solicitud (es decir, se intenta actualizar algo)
+             if (!empty($validatedData)) {
+                return response()->json([
+                    'error' => 'No se permite actualizar un pedido que ya está finalizado (Entregado o Cancelado).'
+                ], 403);
             }
-            
-            try {
+        }
+        
+        try {
+            // Revertir inventario si el estado cambia a 'cancelado' (Lógica crucial)
+            // Esta lógica AHORA solo se ejecuta si el pedido NO estaba ya cancelado o entregado
+            // gracias al chequeo anterior.
+            if (isset($validatedData['estado']) && $validatedData['estado'] === 'cancelado' && $pedido->estado !== 'cancelado') {
+                // Lógica de reversión de stock
                 DB::beginTransaction();
 
-                // 1. Revertir el stock (usando el nuevo método privado)
-                $this->revertirStock($pedido);
+                foreach ($pedido->detallesPedidos as $detalle) {
+                    $inventario = $detalle->producto->inventario->first();
+                    if ($inventario) {
+                        $inventario->cantidad_existencias += $detalle->cantidad;
+                        $inventario->save();
+                    }
+                }
                 
-                // 2. Actualizar el estado del pedido
-                $pedido->update(['estado' => 'cancelado']);
-                
+                $pedido->update($validatedData);
                 DB::commit();
 
-                // Cargar relaciones para el recurso final
                 $pedido->load(['user', 'detallesPedidos.producto.inventario']);
                 return response()->json([
                     'message' => 'Pedido CANCELADO con éxito. Stock revertido.', 
                     'data' => new PedidoResource($pedido)
-                ], Response::HTTP_OK);
+                ], 200);
 
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error("Error al cancelar pedido {$pedido->id}: " . $e->getMessage());
-
-                return response()->json([
-                    'error' => 'Error al cancelar el pedido y revertir el stock.'
-                ], Response::HTTP_INTERNAL_SERVER_ERROR);
             }
-        }
-        
-        // ** ACTUALIZACIÓN ESTÁNDAR (Para otros estados como 'enviado', 'entregado' por Admin) **
-        
-        // Seguridad: No permitir cambiar el estado si ya está entregado o cancelado 
-        if ($pedido->estado === 'entregado' || $pedido->estado === 'cancelado') {
-            return response()->json(['error' => 'No se puede modificar un pedido que ya está en estado "entregado" o "cancelado".'], Response::HTTP_FORBIDDEN);
-        }
-        
-        try {
+
+            // Actualización estándar para otros campos/estados
             $pedido->update($validatedData);
             
             $pedido->load(['user', 'detallesPedidos.producto.inventario']);
             return response()->json([
                 'message' => 'Pedido actualizado con éxito.', 
                 'data' => new PedidoResource($pedido)
-            ], Response::HTTP_OK);
+            ], 200);
 
         } catch (\Exception $e) {
-            Log::error("Error al actualizar pedido {$pedido->id}: " . $e->getMessage());
-            return response()->json([
-                'error' => 'Error al actualizar el pedido.', 
-                'message' => $e->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            DB::rollBack(); // En caso de que la cancelación fallara después del beginTransaction
+            return response()->json(['error' => 'Error al actualizar el pedido.', 'message' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * Elimina un pedido y revierte el inventario (DELETE /api/pedidos/{id}).
+     * @OA\Delete(
+     * path="/api/pedidos/{id}",
+     * summary="Eliminar un pedido",
+     * description="Elimina un pedido y revierte el stock asociado. Solo para Administradores. No se puede eliminar si ya está entregado.",
+     * tags={"Pedidos"},
+     * security={{"bearer_token":{}}},
+     * @OA\Parameter(
+     * name="id",
+     * in="path",
+     * required=true,
+     * description="ID del pedido a eliminar.",
+     * @OA\Schema(type="integer", example=1)
+     * ),
+     * @OA\Response(
+     * response=204,
+     * description="Pedido eliminado y stock revertido con éxito (Sin Contenido)."
+     * ),
+     * @OA\Response(
+     * response=401,
+     * description="No autenticado."
+     * ),
+     * @OA\Response(
+     * response=403,
+     * description="No autorizado (El usuario no es Administrador o el pedido ya fue entregado)."
+     * ),
+     * @OA\Response(
+     * response=404,
+     * description="Pedido no encontrado."
+     * )
+     * )
      */
     public function destroy(int $id)
     {

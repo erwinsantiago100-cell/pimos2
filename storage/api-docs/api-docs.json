@@ -247,6 +247,381 @@
                 ]
             }
         },
+        "/api/pedidos": {
+            "get": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Consultar lista de pedidos",
+                "description": "Retorna una lista paginada de todos los pedidos. Requiere permisos de Administrador.",
+                "operationId": "e848822b988b4e4cf96af0f71f29581c",
+                "responses": {
+                    "200": {
+                        "description": "Lista de pedidos obtenida con éxito.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PedidoResource"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado (Token Bearer ausente o inválido)."
+                    },
+                    "403": {
+                        "description": "No autorizado (El usuario no es Administrador)."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Crear un nuevo pedido",
+                "description": "Crea un pedido, calcula el total y deduce el inventario mediante una transacción de base de datos.",
+                "operationId": "36884e796fd6f470919017f7ca543cd0",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "detalles"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "description": "Opcional. ID del usuario, si no se proporciona, usa el autenticado.",
+                                        "type": "integer",
+                                        "example": "1"
+                                    },
+                                    "detalles": {
+                                        "description": "Lista de productos y cantidades a ordenar.",
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "producto_id",
+                                                "cantidad"
+                                            ],
+                                            "properties": {
+                                                "producto_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "cantidad": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Pedido creado y stock deducido con éxito.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Pedido creado y stock actualizado con éxito."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/PedidoResource"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stock insuficiente o datos de detalle inválidos."
+                    },
+                    "401": {
+                        "description": "No autenticado."
+                    },
+                    "403": {
+                        "description": "No autorizado para crear pedidos."
+                    },
+                    "404": {
+                        "description": "Producto o inventario no encontrado."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            }
+        },
+        "/api/pedidos/{id}": {
+            "get": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Consultar un pedido específico",
+                "description": "Retorna los detalles de un pedido por su ID. Accesible por el dueño del pedido o un Administrador.",
+                "operationId": "41f9fd012dcc6f1915be1a7372c7d87b",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del pedido a consultar.",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pedido obtenido con éxito.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PedidoResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado."
+                    },
+                    "403": {
+                        "description": "No autorizado (No es el dueño ni Administrador)."
+                    },
+                    "404": {
+                        "description": "Pedido no encontrado."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Reemplaza o actualiza completamente un pedido (igual que PATCH para este recurso)",
+                "operationId": "c552afd071c0184bb7ded11c11c3bb41",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del pedido a actualizar",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "estado": {
+                                        "description": "Nuevo estado del pedido.",
+                                        "type": "string",
+                                        "enum": [
+                                            "pendiente",
+                                            "enviado",
+                                            "cancelado",
+                                            "entregado"
+                                        ],
+                                        "example": "enviado"
+                                    },
+                                    "total": {
+                                        "description": "Nuevo total del pedido (opcional).",
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 55.99
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pedido actualizado o cancelado con éxito (con reversión de stock).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Pedido actualizado con éxito."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/PedidoResource"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido no encontrado."
+                    },
+                    "403": {
+                        "description": "No se puede cambiar el estado de un pedido ya entregado."
+                    },
+                    "500": {
+                        "description": "Error interno al actualizar o cancelar el pedido."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Eliminar un pedido",
+                "description": "Elimina un pedido y revierte el stock asociado. Solo para Administradores. No se puede eliminar si ya está entregado.",
+                "operationId": "cb1cb130ebbbdcc1c60f9092878c3834",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del pedido a eliminar.",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Pedido eliminado y stock revertido con éxito (Sin Contenido)."
+                    },
+                    "401": {
+                        "description": "No autenticado."
+                    },
+                    "403": {
+                        "description": "No autorizado (El usuario no es Administrador o el pedido ya fue entregado)."
+                    },
+                    "404": {
+                        "description": "Pedido no encontrado."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Actualiza el estado o el total de un pedido",
+                "description": "Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).\n* @OA\\Patch(\npath=\"/api/pedidos/{id}\",\ntags={\"Pedidos\"},\nsummary=\"Actualiza el estado o el total de un pedido\",\nsecurity={{\"sanctum\": {}}},",
+                "operationId": "ba5ba820be10362302732907351ef5f9",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del pedido a actualizar",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "estado": {
+                                        "description": "Nuevo estado del pedido.",
+                                        "type": "string",
+                                        "enum": [
+                                            "pendiente",
+                                            "enviado",
+                                            "cancelado",
+                                            "entregado"
+                                        ],
+                                        "example": "enviado"
+                                    },
+                                    "total": {
+                                        "description": "Nuevo total del pedido (opcional).",
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 55.99
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pedido actualizado o cancelado con éxito (con reversión de stock).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Pedido actualizado con éxito."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/PedidoResource"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido no encontrado."
+                    },
+                    "403": {
+                        "description": "No se puede cambiar el estado de un pedido ya entregado."
+                    },
+                    "500": {
+                        "description": "Error interno al actualizar o cancelar el pedido."
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/api/productos": {
             "get": {
                 "tags": [
@@ -506,6 +881,71 @@
     },
     "components": {
         "schemas": {
+            "DetallePedidoResource": {
+                "title": "Detalle de Pedido (Resource)",
+                "description": "Representación del detalle de un pedido, incluyendo el producto y las cantidades.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "example": "detalle_pedido"
+                    },
+                    "atributos": {
+                        "properties": {
+                            "cantidad": {
+                                "type": "integer",
+                                "example": 2
+                            },
+                            "precio_unitario": {
+                                "type": "number",
+                                "format": "float",
+                                "example": 15.5
+                            },
+                            "subtotal": {
+                                "type": "number",
+                                "format": "float",
+                                "example": 31
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "relaciones": {
+                        "properties": {
+                            "producto_id": {
+                                "type": "integer",
+                                "example": 101
+                            },
+                            "producto": {
+                                "description": "Información básica del producto (solo si se carga)",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "example": 101
+                                    },
+                                    "tipo": {
+                                        "type": "string",
+                                        "example": "producto"
+                                    },
+                                    "nombre": {
+                                        "type": "string",
+                                        "example": "Gomita de oso"
+                                    },
+                                    "sabor": {
+                                        "type": "string",
+                                        "example": "Fresa"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
             "InventarioResource": {
                 "title": "Inventario Resource",
                 "description": "Estructura de la respuesta para un registro de Inventario",
@@ -546,6 +986,62 @@
                             }
                         },
                         "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "PedidoResource": {
+                "title": "Pedido Resource",
+                "description": "Estructura de un Pedido individual, incluyendo sus relaciones.",
+                "required": [
+                    "id",
+                    "user_id",
+                    "total",
+                    "estado"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "ID único del pedido.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "user_id": {
+                        "description": "ID del usuario que realizó el pedido.",
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "total": {
+                        "description": "Monto total del pedido.",
+                        "type": "number",
+                        "format": "float",
+                        "example": 150.75
+                    },
+                    "estado": {
+                        "description": "Estado actual del pedido.",
+                        "type": "string",
+                        "enum": [
+                            "pendiente",
+                            "enviado",
+                            "entregado",
+                            "cancelado"
+                        ],
+                        "example": "pendiente"
+                    },
+                    "fecha_creacion": {
+                        "description": "Fecha y hora de creación del pedido.",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-05-15T10:00:00Z"
+                    },
+                    "detalles_pedido": {
+                        "description": "Lista de ítems incluidos en el pedido.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DetallePedidoResource"
+                        }
+                    },
+                    "usuario": {
+                        "$ref": "#/components/schemas/UserResource"
                     }
                 },
                 "type": "object"
@@ -650,6 +1146,45 @@
                     }
                 },
                 "type": "object"
+            },
+            "UserResource": {
+                "title": "User Resource",
+                "description": "Estructura de datos básicos del Usuario.",
+                "properties": {
+                    "id": {
+                        "description": "ID único del usuario.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "example": "user"
+                    },
+                    "atributos": {
+                        "properties": {
+                            "name": {
+                                "description": "Nombre completo del usuario.",
+                                "type": "string",
+                                "example": "Juan Pérez"
+                            },
+                            "email": {
+                                "description": "Correo electrónico del usuario.",
+                                "type": "string",
+                                "format": "email",
+                                "example": "juan.perez@example.com"
+                            },
+                            "email_verificado_en": {
+                                "description": "Marca de tiempo de la verificación del correo.",
+                                "type": "string",
+                                "format": "date-time",
+                                "example": "2024-01-01T00:00:00Z",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
             }
         },
         "securitySchemes": {
@@ -666,6 +1201,10 @@
         {
             "name": "Inventario",
             "description": "Operaciones de gestión de stock de productos"
+        },
+        {
+            "name": "Pedidos",
+            "description": "Operaciones relacionadas con la gestión de Pedidos y la lógica de Inventario."
         },
         {
             "name": "Productos",
