@@ -42,5 +42,3 @@ class UpdatePedidoRequest extends FormRequest
         ], 422));
     }
 }
-
-
