@@ -59,8 +59,7 @@ class PedidoTest extends TestCase
 
         $response->assertStatus(Response::HTTP_FORBIDDEN);
     }
-
-    /** * Test para verificar que un usuario puede ver un pedido que le pertenece (show).
+/** * Test para verificar que un usuario puede ver un pedido que le pertenece (show).
      */
     public function test_puede_ver_su_propio_pedido_show_owner()
     {
@@ -72,8 +71,10 @@ class PedidoTest extends TestCase
         $response = $this->getJson("/api/pedidos/{$pedido->id}");
 
         $response->assertStatus(Response::HTTP_OK)
-                ->assertJsonFragment(['pedido_id' => $pedido->id]);
+                 // CORRECCIÓN: Se busca la clave 'id' en lugar de 'pedido_id'
+                 ->assertJsonFragment(['id' => $pedido->id]);
     }
+
 
     /** * Test para verificar que un usuario no puede ver un pedido que no le pertenece.
      */
