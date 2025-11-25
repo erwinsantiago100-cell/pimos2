@@ -10,6 +10,125 @@
         }
     ],
     "paths": {
+        "/api/login": {
+            "post": {
+                "tags": [
+                    "Autenticación"
+                ],
+                "summary": "Generar Token de Acceso (Login)",
+                "description": "Autentica al usuario con correo, contraseña y dispositivo para obtener un token de acceso (Sanctum).",
+                "operationId": "09f5a11774e5690ff8800e9f498401a7",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "correo",
+                                    "contraseña",
+                                    "dispositivo"
+                                ],
+                                "properties": {
+                                    "correo": {
+                                        "description": "Correo electrónico del usuario.",
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "admin@pimos.com"
+                                    },
+                                    "contraseña": {
+                                        "description": "Contraseña del usuario.",
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    },
+                                    "dispositivo": {
+                                        "description": "Nombre del dispositivo (Sanctum).",
+                                        "type": "string",
+                                        "example": "windows"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Inicio de sesión exitoso. Retorna un token de acceso.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Inicio de sesión exitoso."
+                                        },
+                                        "token": {
+                                            "description": "Token de acceso (Bearer Token).",
+                                            "type": "string",
+                                            "example": "lkYTYtksh64dJh9bqKrFa5GHpQZax2IA9D8fdI7Rc54a30ac"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales no válidas.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credenciales inválidas."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "tags": [
+                    "Autenticación"
+                ],
+                "summary": "Cerrar sesión y revocar Token",
+                "description": "Invalida el token de acceso actual del usuario autenticado.",
+                "operationId": "cc362ce60174307c378af272a6efe0ef",
+                "responses": {
+                    "200": {
+                        "description": "Cierre de sesión exitoso. Token revocado.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Cierre de sesión exitoso. Token revocado."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            }
+        },
         "/api/inventario": {
             "get": {
                 "tags": [
@@ -32,8 +151,8 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "No autorizado"
+                    "401": {
+                        "description": "No autenticado"
                     },
                     "500": {
                         "description": "Error interno del servidor"
@@ -44,81 +163,25 @@
                         "bearer_token": []
                     }
                 ]
-            },
-            "post": {
-                "tags": [
-                    "Inventario"
-                ],
-                "summary": "Crear nuevo registro de inventario",
-                "description": "Crea un nuevo registro de stock para un producto que no tenga uno.",
-                "operationId": "4bdb1deb011d85be4aeb4a74c1fddb5c",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "producto_id",
-                                    "cantidad_existencias"
-                                ],
-                                "properties": {
-                                    "producto_id": {
-                                        "description": "ID del producto a inventariar.",
-                                        "type": "integer",
-                                        "example": 1
-                                    },
-                                    "cantidad_existencias": {
-                                        "description": "Cantidad inicial de existencias.",
-                                        "type": "integer",
-                                        "example": 50
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "Registro de inventario creado con éxito.",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InventarioResource"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "No autorizado"
-                    },
-                    "422": {
-                        "description": "Error de validación"
-                    }
-                },
-                "security": [
-                    {
-                        "bearer_token": []
-                    }
-                ]
             }
         },
-        "/api/inventario/{id}": {
+        "/api/inventario/{producto_id}": {
             "get": {
                 "tags": [
                     "Inventario"
                 ],
-                "summary": "Consultar un registro de inventario",
-                "description": "Retorna un registro de inventario específico por ID.",
-                "operationId": "f70d41595ebb664771311fdb35e14181",
+                "summary": "Consultar stock de un producto",
+                "description": "Retorna el registro de inventario (stock) de un producto específico por su ID.",
+                "operationId": "4872e6af08987b106c16fdfc2ded2b65",
                 "parameters": [
                     {
-                        "name": "id",
+                        "name": "producto_id",
                         "in": "path",
-                        "description": "ID del registro de inventario.",
+                        "description": "ID del producto para consultar su inventario.",
                         "required": true,
                         "schema": {
-                            "type": "integer"
+                            "type": "integer",
+                            "example": 1
                         }
                     }
                 ],
@@ -133,8 +196,8 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "No autorizado"
+                    "401": {
+                        "description": "No autenticado"
                     },
                     "404": {
                         "description": "Registro no encontrado"
@@ -150,17 +213,18 @@
                 "tags": [
                     "Inventario"
                 ],
-                "summary": "Actualizar stock (cantidad)",
-                "description": "Actualiza la cantidad de existencias de un registro de inventario. Solo se puede actualizar la cantidad.",
-                "operationId": "93da66c8bc6b35165f6118fbd75e9097",
+                "summary": "Actualizar o Crear Stock",
+                "description": "Actualiza la cantidad de existencias para un producto o crea el registro de inventario si no existe.",
+                "operationId": "cc8e83f6aa6287050dd4471c3460359f",
                 "parameters": [
                     {
-                        "name": "id",
+                        "name": "producto_id",
                         "in": "path",
-                        "description": "ID del registro de inventario a actualizar.",
+                        "description": "ID del producto a actualizar o crear stock.",
                         "required": true,
                         "schema": {
-                            "type": "integer"
+                            "type": "integer",
+                            "example": 1
                         }
                     }
                 ],
@@ -186,7 +250,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Inventario actualizado con éxito.",
+                        "description": "Stock actualizado con éxito.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -195,14 +259,24 @@
                             }
                         }
                     },
-                    "403": {
-                        "description": "No autorizado"
+                    "201": {
+                        "description": "Inventario inicial creado con éxito.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InventarioResource"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    },
+                    "404": {
+                        "description": "Producto asociado no encontrado"
                     },
                     "422": {
                         "description": "Error de validación"
-                    },
-                    "404": {
-                        "description": "Registro no encontrado"
                     }
                 },
                 "security": [
@@ -216,25 +290,26 @@
                     "Inventario"
                 ],
                 "summary": "Eliminar registro de inventario",
-                "description": "Elimina un registro de inventario (stock) por ID.",
-                "operationId": "37a3b09f76b43fa8a03dbe0009568319",
+                "description": "Elimina el registro de stock (inventario) para un producto específico por su ID.",
+                "operationId": "c7075e23314e020fdc269fc982bc54a4",
                 "parameters": [
                     {
-                        "name": "id",
+                        "name": "producto_id",
                         "in": "path",
-                        "description": "ID del registro de inventario a eliminar.",
+                        "description": "ID del producto cuyo registro de inventario se desea eliminar.",
                         "required": true,
                         "schema": {
-                            "type": "integer"
+                            "type": "integer",
+                            "example": 1
                         }
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "Registro de inventario eliminado con éxito. (No Content)"
+                    "200": {
+                        "description": "Registro de inventario eliminado con éxito."
                     },
-                    "403": {
-                        "description": "No autorizado"
+                    "401": {
+                        "description": "No autenticado"
                     },
                     "404": {
                         "description": "Registro no encontrado"
@@ -1188,11 +1263,12 @@
             }
         },
         "securitySchemes": {
-            "sanctum": {
+            "bearer_token": {
                 "type": "http",
+                "description": "Ingrese el token de autenticación con el prefijo 'Bearer '. Ejemplo: Bearer 1|xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "name": "Authorization",
                 "in": "header",
-                "bearerFormat": "token",
+                "bearerFormat": "JWT",
                 "scheme": "bearer"
             }
         }
@@ -1201,6 +1277,10 @@
         {
             "name": "Inventario",
             "description": "Operaciones de gestión de stock de productos"
+        },
+        {
+            "name": "Autenticación",
+            "description": "Operaciones de inicio de sesión y gestión de tokens"
         },
         {
             "name": "Pedidos",

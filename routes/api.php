@@ -2,47 +2,45 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
-// Importar los controladores de la API
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\InventarioController;
-use App\Http\Controllers\Api\PedidoController;
-use App\Http\Controllers\Api\LoginController;
+// Se elimina la importación de AuthController
 
 /*
 |--------------------------------------------------------------------------
-| Rutas de la API
+| API Routes
 |--------------------------------------------------------------------------
-| Aquí se registran las rutas de la API para la aplicación.
+|
+| Aquí es donde puedes registrar rutas API para tu aplicación.
+|
 */
 
-// --- RUTAS PÚBLICAS (NO REQUIEREN AUTENTICACIÓN) ---
-Route::post('login', [LoginController::class, 'store']); // Ruta para el inicio de sesión
+// 1. RUTAS DE AUTENTICACIÓN (Ahora en InventarioController)
+Route::post('login', [InventarioController::class, 'login']);
 
-// Esto ayuda a evitar problemas de CORS en aplicaciones web que consumen esta API 
-Route::options('{all:.*}', function(){
-    return response()->json();
+// RUTA BASE DE AUTENTICACIÓN (Ruta que viene por defecto)
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
 });
 
-// --- RUTAS PROTEGIDAS POR AUTENTICACIÓN (REQUIEREN TOKEN) ---
-Route::middleware('auth:sanctum')->group(function () { 
+// 2. RUTAS PROTEGIDAS (Requieren autenticación)
+Route::middleware('auth:sanctum')->group(function () {
+    // Cerrar Sesión (Logout) - Ahora en InventarioController
+    Route::post('logout', [InventarioController::class, 'logout']);
 
-    // Ruta de prueba para obtener el usuario autenticado
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
-
-    // Rutas de Recursos (CRUD Completo)
+    // ProductoController: Proporciona las 5 rutas RESTful estándar (CRUD completo).
+    // Genera: index, store, show, update, destroy
     Route::apiResource('productos', ProductoController::class);
-    Route::apiResource('inventario', InventarioController::class);
-    
-    // Rutas de Pedidos (Recurso RESTful estándar)
-    Route::apiResource('pedidos', PedidoController::class);
-    
-    // RUTA PERSONALIZADA AÑADIDA: Para manejar la cancelación de un pedido de forma explícita
-    // Esto es crucial para la lógica de reversión de stock en el controlador.
-    Route::put('pedidos/{pedido}/cancel', [PedidoController::class, 'cancel'])->name('pedidos.cancel');
-    
-    // Ruta para cerrar sesión
-    Route::post('logout', [LoginController::class, 'destroy']);
+
+    // InventarioController: Rutas Resource para stock (index, show, update, destroy).
+    Route::apiResource('inventario', InventarioController::class)->only([
+        'index', // GET /api/inventario
+        'show',  // GET /api/inventario/{inventario} -> mapea a producto_id
+        'update', // PUT/PATCH /api/inventario/{inventario} -> mapea a producto_id
+        'destroy', // DELETE /api/inventario/{inventario} -> mapea a producto_id
+    ]);
+
+    // PedidoController: Proporciona las rutas RESTful para Pedidos, excluyendo la eliminación (destroy).
+    // Genera: index, store, show, update
+    Route::apiResource('pedidos', PedidoController::class)->except(['destroy']);
 });
