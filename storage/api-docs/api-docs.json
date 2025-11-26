@@ -574,45 +574,6 @@
                     }
                 ]
             },
-            "delete": {
-                "tags": [
-                    "Pedidos"
-                ],
-                "summary": "Eliminar un pedido",
-                "description": "Elimina un pedido y revierte el stock asociado. Solo para Administradores. No se puede eliminar si ya está entregado.",
-                "operationId": "cb1cb130ebbbdcc1c60f9092878c3834",
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "description": "ID del pedido a eliminar.",
-                        "required": true,
-                        "schema": {
-                            "type": "integer",
-                            "example": 1
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "Pedido eliminado y stock revertido con éxito (Sin Contenido)."
-                    },
-                    "401": {
-                        "description": "No autenticado."
-                    },
-                    "403": {
-                        "description": "No autorizado (El usuario no es Administrador o el pedido ya fue entregado)."
-                    },
-                    "404": {
-                        "description": "Pedido no encontrado."
-                    }
-                },
-                "security": [
-                    {
-                        "bearer_token": []
-                    }
-                ]
-            },
             "patch": {
                 "tags": [
                     "Pedidos"
@@ -688,6 +649,47 @@
                     },
                     "500": {
                         "description": "Error interno al actualizar o cancelar el pedido."
+                    }
+                },
+                "security": [
+                    {
+                        "bearer_token": []
+                    }
+                ]
+            }
+        },
+        "/api/pedidos/{pedido}": {
+            "delete": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Eliminar un pedido",
+                "description": "Elimina un pedido y revierte el stock asociado. Solo para Administradores.",
+                "operationId": "5a501dd745e6df14d0a90e9b2c919aed",
+                "parameters": [
+                    {
+                        "name": "pedido",
+                        "in": "path",
+                        "description": "ID del pedido a eliminar.",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Pedido eliminado y stock revertido con éxito."
+                    },
+                    "401": {
+                        "description": "No autenticado."
+                    },
+                    "403": {
+                        "description": "No autorizado."
+                    },
+                    "404": {
+                        "description": "Pedido no encontrado."
                     }
                 },
                 "security": [

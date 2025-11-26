@@ -45,4 +45,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // PedidoController: Proporciona las rutas RESTful para Pedidos, excluyendo la eliminación (destroy).
     // Genera: index, store, show, update
     Route::apiResource('pedidos', PedidoController::class)->except(['destroy']);
+    Route::delete('pedidos/{pedido}', [PedidoController::class, 'destroy'])
+     ->name('pedidos.destroy');
 });

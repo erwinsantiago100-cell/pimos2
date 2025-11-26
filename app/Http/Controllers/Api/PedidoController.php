@@ -447,38 +447,39 @@ class PedidoController extends Controller
         }
     }
 
-    /**
-     * @OA\Delete(
-     * path="/api/pedidos/{id}",
-     * summary="Eliminar un pedido",
-     * description="Elimina un pedido y revierte el stock asociado. Solo para Administradores. No se puede eliminar si ya está entregado.",
-     * tags={"Pedidos"},
-     * security={{"bearer_token":{}}},
-     * @OA\Parameter(
-     * name="id",
-     * in="path",
-     * required=true,
-     * description="ID del pedido a eliminar.",
-     * @OA\Schema(type="integer", example=1)
-     * ),
-     * @OA\Response(
-     * response=204,
-     * description="Pedido eliminado y stock revertido con éxito (Sin Contenido)."
-     * ),
-     * @OA\Response(
-     * response=401,
-     * description="No autenticado."
-     * ),
-     * @OA\Response(
-     * response=403,
-     * description="No autorizado (El usuario no es Administrador o el pedido ya fue entregado)."
-     * ),
-     * @OA\Response(
-     * response=404,
-     * description="Pedido no encontrado."
-     * )
-     * )
-     */
+   /**
+ * @OA\Delete(
+ *     path="/api/pedidos/{pedido}",
+ *     summary="Eliminar un pedido",
+ *     description="Elimina un pedido y revierte el stock asociado. Solo para Administradores.",
+ *     tags={"Pedidos"},
+ *     security={{"bearer_token":{}}},
+ *     @OA\Parameter(
+ *         name="pedido",
+ *         in="path",
+ *         required=true,
+ *         description="ID del pedido a eliminar.",
+ *         @OA\Schema(type="integer", example=1)
+ *     ),
+ *     @OA\Response(
+ *         response=204,
+ *         description="Pedido eliminado y stock revertido con éxito."
+ *     ),
+ *     @OA\Response(
+ *         response=401,
+ *         description="No autenticado."
+ *     ),
+ *     @OA\Response(
+ *         response=403,
+ *         description="No autorizado."
+ *     ),
+ *     @OA\Response(
+ *         response=404,
+ *         description="Pedido no encontrado."
+ *     )
+ * )
+ */
+
     public function destroy(int $id)
     {
         $pedido = Pedido::with('detallesPedidos')->find($id);
