@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\PedidoController;
+// use App\Http\Controllers\Api\AuthController;
 // Se elimina la importación de AuthController
 
 /*

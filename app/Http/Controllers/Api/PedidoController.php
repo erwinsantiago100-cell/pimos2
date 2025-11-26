@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  * name="Pedidos",
  * description="Operaciones relacionadas con la gestión de Pedidos y la lógica de Inventario."
  * )
- * * Gestiona la lógica CRUD de los Pedidos, incluyendo la deducción y reversión de stock.
+ * Gestiona la lógica CRUD de los Pedidos, incluyendo la deducción y reversión de stock.
  * Utiliza transacciones y bloqueo pesimista (lockForUpdate) para garantizar la atomicidad del inventario.
  */
 class PedidoController extends Controller
@@ -29,18 +29,23 @@ class PedidoController extends Controller
     
     /**
      * Reverte el stock al inventario. Este proceso debe ejecutarse dentro de una transacción.
+     * Es crucial que el Pedido ya tenga cargada la relación 'detallesPedidos'.
      *
      * @param Pedido $pedido
      * @return void
      */
     private function revertirStock(Pedido $pedido): void
     {
+        // Aseguramos que la relación 'detallesPedidos' esté cargada, aunque normalmente se haría en el controlador principal.
+        $pedido->loadMissing('detallesPedidos'); 
+
         foreach ($pedido->detallesPedidos as $detalle) {
             
             // Bloquear explícitamente el Inventario para la reversión
+            // Esto garantiza que ninguna otra transacción modifique la fila de inventario hasta el DB::commit().
             $inventario = Inventario::where('producto_id', $detalle->producto_id)
-                                    ->lockForUpdate()
-                                    ->first();
+                                 ->lockForUpdate()
+                                 ->first();
 
             if ($inventario) {
                 // Devolver las unidades al inventario
@@ -182,9 +187,9 @@ class PedidoController extends Controller
                 // 1. Bloquear explícitamente el Inventario y obtener el producto relacionado
                 // MEJORA: Eager loading de 'producto' para asegurar que esté disponible.
                 $inventario = Inventario::with('producto') 
-                                        ->where('producto_id', $detalle['producto_id'])
-                                        ->lockForUpdate()
-                                        ->first();
+                                             ->where('producto_id', $detalle['producto_id'])
+                                             ->lockForUpdate() // Bloqueo de fila crucial
+                                             ->first();
 
                 if (!$inventario) {
                     DB::rollBack();
@@ -295,7 +300,7 @@ class PedidoController extends Controller
         return new PedidoResource($pedido);
     }
 
-   /**
+    /**
      * Actualiza un pedido existente (PUT/PATCH /api/pedidos/{id}).
      * * @OA\Patch(
      * path="/api/pedidos/{id}",
@@ -387,7 +392,9 @@ class PedidoController extends Controller
             return response()->json(['error' => 'Pedido no encontrado.'], 404);
         }
 
-        // Ya no necesitamos la validación manual, el FormRequest lo hace.
+        // Autorización de la política antes de cualquier cambio
+        $this->authorize('update', $pedido);
+
         $validatedData = $request->validated();
         
         // 1. COMPROBACIÓN DE ESTADO FINAL (Lógica del usuario, colocada correctamente)
@@ -404,20 +411,15 @@ class PedidoController extends Controller
         
         try {
             // Revertir inventario si el estado cambia a 'cancelado' (Lógica crucial)
-            // Esta lógica AHORA solo se ejecuta si el pedido NO estaba ya cancelado o entregado
-            // gracias al chequeo anterior.
             if (isset($validatedData['estado']) && $validatedData['estado'] === 'cancelado' && $pedido->estado !== 'cancelado') {
-                // Lógica de reversión de stock
-                DB::beginTransaction();
-
-                foreach ($pedido->detallesPedidos as $detalle) {
-                    $inventario = $detalle->producto->inventario->first();
-                    if ($inventario) {
-                        $inventario->cantidad_existencias += $detalle->cantidad;
-                        $inventario->save();
-                    }
-                }
                 
+                // Lógica de reversión de stock (utilizando el método privado seguro)
+                DB::beginTransaction();
+                
+                // Aseguramos que los detalles estén cargados para el helper
+                $pedido->load('detallesPedidos'); 
+                $this->revertirStock($pedido); // Usa el método robusto con lockForUpdate
+
                 $pedido->update($validatedData);
                 DB::commit();
 
@@ -440,6 +442,7 @@ class PedidoController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack(); // En caso de que la cancelación fallara después del beginTransaction
+            Log::error("Error al actualizar el pedido {$id}: " . $e->getMessage());
             return response()->json(['error' => 'Error al actualizar el pedido.', 'message' => $e->getMessage()], 500);
         }
     }
@@ -495,7 +498,7 @@ class PedidoController extends Controller
         try {
             DB::beginTransaction();
 
-            // 1. Revertir el stock (usando el nuevo método privado)
+            // 1. Revertir el stock (usando el nuevo método privado que incluye lockForUpdate)
             $this->revertirStock($pedido);
 
             // 2. Eliminar el pedido
