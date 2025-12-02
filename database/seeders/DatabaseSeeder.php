@@ -6,11 +6,12 @@ use App\Models\Inventario;
 use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\User;
-use App\Models\DetallePedido; // Modelo necesario para el factory encadenado
-use Illuminate\Database\Eloquent\Factories\Factory; 
+use App\Models\Rol; // <--- AGREGAR: Modelo de Roles para asignación robusta
+use App\Models\DetallePedido; 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB; 
+use Illuminate\Support\Facades\Log; // <--- AGREGAR: Para manejo de errores
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,30 +24,53 @@ class DatabaseSeeder extends Seeder
         $this->call(RolSeeder::class);
 
         // ***** SOLUCIÓN DEFINITIVA PARA SQLITE (Pragma de Foráneas) *****
+        // Esta sección está correcta, la mantendremos.
         if (DB::connection() instanceof \Illuminate\Database\SQLiteConnection) {
             DB::statement('PRAGMA foreign_keys = OFF;');
         }
         
         // 2. CREACIÓN DE USUARIOS CLAVE Y ASIGNACIÓN DE ROLES
         
+        // Funcióm auxiliar para obtener roles de forma segura
+        $getRole = function (string $name) {
+            $role = Rol::where('name', $name)->first();
+            if (!$role) {
+                Log::error("El rol '{$name}' no se encontró. Verifique el RolSeeder.");
+            }
+            return $role;
+        };
+
+        // Obtener los objetos Rol de forma segura
+        $adminRole = $getRole('Administrador');
+        $editorRole = $getRole('Editor');
+        $userRole = $getRole('Usuario');
+        
         // Usuario Administrador (Acceso Total)
-        User::factory()->create([
+        $adminUser = User::factory()->create([
             'name' => 'Admin de PIMOS',
             'email' => 'admin@pimos.com', 
-            'password' => Hash::make('password'), // Contraseña: password
-        ])->assignRole('Administrador'); // Asignar rol de Administrador
+            'password' => Hash::make('password'),
+        ]);
+        if ($adminRole) {
+            $adminUser->assignRole($adminRole); 
+        }
 
         // Usuario Editor (Gestión de Productos/Pedidos/Inventario)
-        User::factory()->create([
+        $editorUser = User::factory()->create([
             'name' => 'Editor de PIMOS',
             'email' => 'editor@pimos.com',
-            'password' => Hash::make('password'), // Contraseña: password
-        ])->assignRole('Editor'); // Asignar rol de Editor
+            'password' => Hash::make('password'),
+        ]);
+        if ($editorRole) {
+            $editorUser->assignRole($editorRole);
+        }
         
         // 3. Crear 48 usuarios aleatorios y asignarles el rol 'Usuario'
-        User::factory(48)->create()->each(function ($user) {
-            $user->assignRole('Usuario');
-        });
+        if ($userRole) {
+             User::factory(48)->create()->each(function ($user) use ($userRole) {
+                $user->assignRole($userRole);
+            });
+        }
         
         // 4. Crear Productos de Prueba (50 tipos de gomitas, por ejemplo)
         $productos = Producto::factory(50)->create();
@@ -60,7 +84,6 @@ class DatabaseSeeder extends Seeder
 
         // 6. Crear Pedidos y sus Detalles (200 Pedidos)
         Pedido::factory(200)
-            // DetallePedidoFactory existe y usa el nombre de relación 'detallesPedidos'
             ->has(DetallePedido::factory()->count(rand(1, 8)), 'detallesPedidos') 
             ->create();
 
