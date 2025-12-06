@@ -9,6 +9,9 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
+    //1.4. detalles_pedidos
+    // Esta tabla es crucial, ya que almacena los detalles de lo que realmente se compró en cada pedido. 
+    // Representa una relación Muchos a Muchos entre pedidos y productos.
     public function up(): void
     {
         Schema::create('detalles_pedidos', function (Blueprint $table) {
@@ -32,6 +35,10 @@ return new class extends Migration
     /**
      * Reverse the migrations.
      */
+    //Relaciones: Define dos claves foráneas explícitas (foreign en lugar de foreignId) 
+//que apuntan a pedidos y productos. Esto es un buen ejemplo de cómo manejar tablas pivote o de relación.
+// La directiva ->onDelete('cascade') asegura que si un usuario es eliminado,
+// todos sus pedidos asociados también se eliminen automáticamente.
     public function down(): void
     {
         Schema::dropIfExists('detalles_pedidos');
