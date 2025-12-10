@@ -6,7 +6,7 @@ use App\Models\Inventario;
 use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\User;
-use App\Models\Rol;
+use Spatie\Permission\Models\Role;
 use App\Models\DetallePedido; 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -32,13 +32,15 @@ class DatabaseSeeder extends Seeder
         // 2. CREACIÓN DE USUARIOS CLAVE Y ASIGNACIÓN DE ROLES
         
         // Funcióm auxiliar para obtener roles de forma segura
-        $getRole = function (string $name) {
-            $role = Rol::where('name', $name)->first();
-            if (!$role) {
-                Log::error("El rol '{$name}' no se encontró. Verifique el RolSeeder.");
-            }
-            return $role;
-        };
+        // Funcióm auxiliar para obtener roles de forma segura
+$getRole = function (string $name) {
+    // Usamos la clase Role del paquete Spatie
+    $role = Role::where('name', $name)->first(); 
+    if (!$role) {
+        Log::error("El rol '{$name}' no se encontró. Verifique el RolSeeder.");
+    }
+    return $role;
+};
 
         // Obtener los objetos Rol de forma segura
         $adminRole = $getRole('Administrador');
