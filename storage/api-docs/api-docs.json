@@ -6,8 +6,10 @@
     },
     "servers": [
         {
-            "url": "http://pimos2-production-8705.up.railway.app",
-            "description": "Servidor de Producción"
+            "url": "http://pimos2-production-8705.up.railway.app"
+        },
+        {
+            "url": "https://localhost:8000"
         }
     ],
     "paths": {
