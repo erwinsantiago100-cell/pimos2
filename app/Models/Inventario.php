@@ -1,6 +1,7 @@
 <?php
-
+//Este modelo mapea la tabla inventarios y gestiona el stock de cada producto.
 namespace App\Models;
+
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,8 +27,11 @@ class Inventario extends Model
      * Relación Inversa: El registro de inventario pertenece a un único producto.
      * @return BelongsTo
      */
+    //Define que este registro de inventario pertenece a un Producto. Conecta a través de la clave foránea producto_id.
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Producto::class, 'producto_id');
     }
 }
+
+//En resumen: Desde un registro de inventario, puedes saber a qué producto corresponde y viceversa.

@@ -23,6 +23,10 @@ return new class extends Migration
             $table->string('sabor');
             $table->string('tamano');
             $table->decimal('precio', 8, 2);
+            //En Laravel, en una migración, timestamps() es un método que agrega automáticamente dos columnas a la tabla:
+             //created_at → guarda la fecha y hora en que el registro fue creado.
+
+            //updated_at → guarda la fecha y hora en que el registro fue actualizado por última vez.
             $table->timestamps();
         });
     }

@@ -83,6 +83,8 @@ class PedidoController extends Controller
     public function index()
     {
         // Autorización para ver la lista completa de pedidos (usa viewAny de PedidoPolicy)
+        //Lista paginada de pedidos. Autorización: Usa $this->authorize('viewAny', Pedido::class) 
+        // (de una PedidoPolicy) para asegurar que solo usuarios con el rol adecuado (ej: Administrador) puedan ver la lista completa
         $this->authorize('viewAny', Pedido::class); 
 
         try {
@@ -157,6 +159,15 @@ class PedidoController extends Controller
      */
     public function store(StorePedidoRequest $request)
     {
+        //Creación y Deducción de Stock: 1. Inicia DB::beginTransaction().
+        //  2. Crea el registro Pedido (con total = 0).
+        //  3. Itera sobre cada detalle: a. Bloquea el Inventario del producto con lockForUpdate().
+        //  b. Verifica si cantidad_existencias >= cantidad solicitada.
+        //  c. Si el stock es suficiente, lo deduce ($inventario->save()) y calcula el total. 
+        // d. Si el stock es insuficiente, ejecuta DB::rollBack() y retorna 400 Bad Request (Stock insuficiente).
+        // 4. Si todos los detalles pasan, crea los DetallePedido y actualiza el total del Pedido. 
+        // 5. Ejecuta DB::commit() y retorna 201 Created.
+        //
         $this->authorize('create', Pedido::class); 
 
         $validatedData = $request->validated();
@@ -170,8 +181,9 @@ class PedidoController extends Controller
         }
         
         try {
+                    //Creación y Deducción de Stock: 1. Inicia DB::beginTransaction().
             DB::beginTransaction();
-
+        //  2. Crea el registro Pedido (con total = 0).
             $pedido = Pedido::create([
                 'user_id' => $userId, 
                 // Estado por defecto 'pendiente'
@@ -288,6 +300,8 @@ class PedidoController extends Controller
      */
     public function show(int $id)
     {
+        //Muestra un pedido. Autorización: Usa $this->authorize('view', $pedido) 
+        // para permitir que el dueño del pedido o un Administrador lo vea.
         $pedido = Pedido::with(['user', 'detallesPedidos.producto.inventario'])->find($id);
 
         if (!$pedido) {
@@ -385,6 +399,14 @@ class PedidoController extends Controller
      */
     public function update(UpdatePedidoRequest $request, int $id)
     {
+        //Actualización y Cancelación (Reversión de Stock):
+        //  1. Verifica la autorización ($this->authorize('update', $pedido)). 
+        // 2. Comprobación de estado final: Impide la actualización si el estado es entregado o cancelado. 
+        // 3. Lógica de Cancelación: Si el estado solicitado es 'cancelado' y el estado anterior no lo era, 
+        // inicia una transacción, llama a revertirStock($pedido) (que usa lockForUpdate()), 
+        // actualiza el estado, hace DB::commit(), y retorna éxito.
+        //  4. Para otras actualizaciones (ej: cambiar a 'enviado'), simplemente actualiza el registro sin tocar el inventario.
+        
         $pedido = Pedido::find($id);
 
         if (!$pedido) {

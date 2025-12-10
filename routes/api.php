@@ -20,6 +20,11 @@ use App\Http\Controllers\Api\PedidoController;
 // 1. RUTAS DE AUTENTICACIÓN (Ahora en InventarioController)
 Route::post('login', [InventarioController::class, 'login']);
 
+// Esto ayuda a evitar problemas de CORS en aplicaciones web que consumen esta API 
+Route::options('{all:.*}', function(){
+    return response()->json();
+});
+
 // RUTA BASE DE AUTENTICACIÓN (Ruta que viene por defecto)
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();

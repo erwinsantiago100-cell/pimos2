@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -58,6 +57,12 @@ class InventarioController extends Controller
      */
     public function login(Request $request)
     {
+        //1. Validación: Recibe correo, contraseña y dispositivo.
+        //  2. Autenticación: Usa Auth::attempt() para verificar las credenciales,
+        //  mapeando los campos en español a los de la base de datos (email y password).
+    
+        // para crear un nuevo token de acceso (Bearer Token) para el dispositivo.
+      
         // Validación usando los campos en español
         $request->validate([
             'correo' => 'required|email',
@@ -74,7 +79,8 @@ class InventarioController extends Controller
                 'correo' => ['Credenciales inválidas.'],
             ]);
         }
-
+//  3. Generación de Token: Si es exitoso, 
+        // usa $user->createToken($request->dispositivo)->plainTextToken 
         $user = $request->user();
         
         $token = $user->createToken($request->dispositivo)->plainTextToken;
@@ -108,6 +114,9 @@ class InventarioController extends Controller
     public function logout(Request $request)
     {
         // Revoca el token de acceso actual del usuario
+        //1. Revocación: Usa $request->user()->currentAccessToken()->delete()
+        //  para eliminar el token actual utilizado para hacer la petición.
+        //  Esto invalida inmediatamente la sesión del usuario en ese dispositivo.
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
@@ -137,8 +146,10 @@ class InventarioController extends Controller
     {
         try {
             // Carga la relación 'producto'
+            //Obtiene todos los registros de inventario. Utiliza Inventario::with('producto')->get() para cargar la relación del producto 
+            // (evitando el problema N+1) 
             $inventario = Inventario::with('producto')->get();
-            
+            //y luego formatea la salida con InventarioResource::collection().
             // Usa el método collection() en el Resource
             return InventarioResource::collection($inventario); 
 
@@ -175,6 +186,10 @@ class InventarioController extends Controller
      */
     public function show(int $producto_id)
     {
+
+        //Busca el registro de inventario por el producto_id (Inventario::where('producto_id', $producto_id)->first()). 
+        // Si existe, retorna el stock del producto con el InventarioResource
+        //
         $inventario = Inventario::where('producto_id', $producto_id)
                                 ->with('producto') // Carga la relación
                                 ->first();
@@ -228,6 +243,11 @@ class InventarioController extends Controller
      */
     public function update(Request $request, int $producto_id)
     {
+        //Lógica de upsert (Update/Insert): 1. Valida cantidad_existencias.
+        // 2. Intenta buscar el registro existente por producto_id.
+        //  3. Si existe: Lo actualiza ($inventario->update(...)).
+        
+        //
         try {
             $validatedData = $request->validate([
                 'cantidad_existencias' => 'required|integer|min:0',
@@ -241,6 +261,8 @@ class InventarioController extends Controller
 
         if (!$inventario) {
             // Si no existe, verificamos que el Producto exista para crear el Inventario
+            //  4. Si NO existe: Verifica que el producto (Producto::find($producto_id)) 
+        // exista y luego crea el registro de inventario, retornando un código 201 Created.
             if (!Producto::find($producto_id)) {
                 return response()->json(['error' => 'El producto asociado no existe.'], Response::HTTP_NOT_FOUND);
             }
@@ -292,6 +314,8 @@ class InventarioController extends Controller
      */
     public function destroy(int $producto_id)
     {
+        //Busca y elimina el registro de inventario asociado a un producto_id.
+        //  Retorna 200 OK si es exitoso o 404 Not Found si el registro de stock no existía.
         $inventario = Inventario::where('producto_id', $producto_id)->first();
 
         if (!$inventario) {

@@ -24,6 +24,7 @@ return new class extends Migration
             $table->id('inventario_id');
             // Clave foránea que referencia a 'productos'
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
+            //eliminar los números negativos ya que integer los permite y unsignedInteger no los permite 
             $table->unsignedInteger('cantidad_existencias');
             $table->timestamps();
         });
