@@ -16,7 +16,7 @@ namespace App\Http\Controllers;
  * name="Authorization",
  * description="Ingrese el token de autenticación con el prefijo 'Bearer '. Ejemplo: Bearer 1|xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
  * )
- * @OA\Server(url="http://localhost:8000")
+ * @OA\Server(url="http://pimos2-production-8705.up.railway.app", description="Servidor de Producción")
  *
  * @OA\Security(
  * security={{"bearer_token":{}}}

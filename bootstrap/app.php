@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Las rutas que coincidan con estos patrones no requerirán un token CSRF (Cross-Site Request Forgery)
         $middleware->validateCsrfTokens(except: [
             'http://localhost:8000/*',
+            'https://pimos2-production-8705.up.railway.app/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
