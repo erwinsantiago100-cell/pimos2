@@ -21,7 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\HandleCors::class, 
             
             // Middleware de Sanctum (ya estaba)
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            
+            //\Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
         // Las rutas que coincidan con estos patrones no requerirán un token CSRF
@@ -30,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'https://pimos2-production-8705.up.railway.app/*',
 
             // 🔥 LÍNEA CRUCIAL: Excluye la ruta del Login.
-            'api/login',
+            //'api/login',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
