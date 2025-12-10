@@ -28,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'http://localhost:8000/*',
             'https://pimos2-production-8705.up.railway.app/*',
+
+            // 🔥 LÍNEA CRUCIAL: Excluye la ruta del Login.
+            'api/login',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
