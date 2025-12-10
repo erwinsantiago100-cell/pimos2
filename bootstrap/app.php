@@ -12,13 +12,19 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Añadir el middleware de Sanctum para las peticiones API 
-        // Asegura que las cookies de sesión se manejen correctamente
+        
+        // La sección 'api' es donde se aplican los middlewares a tus rutas API (routes/api.php).
         $middleware->api(prepend: [
+            
+            // 💡 LÍNEA CLAVE AÑADIDA: Esto activa la funcionalidad CORS nativa.
+            //    Leerá las reglas que pusiste en config/cors.php
+            \Illuminate\Http\Middleware\HandleCors::class, 
+            
+            // Middleware de Sanctum (ya estaba)
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
-        // Las rutas que coincidan con estos patrones no requerirán un token CSRF (Cross-Site Request Forgery)
+        // Las rutas que coincidan con estos patrones no requerirán un token CSRF
         $middleware->validateCsrfTokens(except: [
             'http://localhost:8000/*',
             'https://pimos2-production-8705.up.railway.app/*',
